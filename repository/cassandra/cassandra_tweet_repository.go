@@ -1,7 +1,10 @@
 package cassandra
 
 import (
+	"fmt"
 	"github.com/gocql/gocql"
+	"log"
+	"os"
 )
 
 type CassandraTweetRepository struct {
@@ -9,11 +12,11 @@ type CassandraTweetRepository struct {
 }
 
 func NewCassandraTweetRepository() (*CassandraTweetRepository, error) {
-	//dbport := os.Getenv("DBPORT")
-	//db := os.Getenv("DB")
-	//host := fmt.Sprintf("%s:%s", db, dbport)
+	dbport := os.Getenv("DBPORT")
+	db := os.Getenv("DB")
+	host := fmt.Sprintf("%s:%s", db, dbport)
 
-	cluster := gocql.NewCluster("127.0.0.1")
+	cluster := gocql.NewCluster(host)
 	cluster.ProtoVersion = 4
 	cluster.Keyspace = "tweet_database"
 	cluster.Consistency = gocql.Quorum
@@ -23,6 +26,8 @@ func NewCassandraTweetRepository() (*CassandraTweetRepository, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Printf("Connected OK!")
 
 	return &CassandraTweetRepository{
 		session: session,
