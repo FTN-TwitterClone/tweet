@@ -1,17 +1,20 @@
 package controller
 
 import (
+	"go.opentelemetry.io/otel/trace"
 	"net/http"
 	"tweet/service"
 )
 
 type TweetController struct {
 	tweetService *service.TweetService
+	tracer       trace.Tracer
 }
 
-func NewTweetController(tweetService *service.TweetService) *TweetController {
+func NewTweetController(tweetService *service.TweetService, tracer trace.Tracer) *TweetController {
 	return &TweetController{
 		tweetService,
+		tracer,
 	}
 }
 

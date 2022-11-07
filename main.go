@@ -41,9 +41,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tweetService := service.NewTweetService(tweetRepository)
+	tweetService := service.NewTweetService(tweetRepository, tracer)
 
-	tweetController := controller.NewTweetController(tweetService)
+	tweetController := controller.NewTweetController(tweetService, tracer)
 
 	router := mux.NewRouter()
 	router.StrictSlash(true)
