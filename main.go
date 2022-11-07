@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"log"
 	"net/http"
 	"os"
@@ -11,19 +12,31 @@ import (
 	"syscall"
 	"time"
 	"tweet/controller"
+	"tweet/controller/jwt"
 	"tweet/repository/cassandra"
 	"tweet/service"
-	"tweet/tracer"
+	"tweet/tracing"
 )
 
 func main() {
 	quit := make(chan os.Signal)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-	tracer, closer := tracer.Init("tweet_service")
-	opentracing.SetGlobalTracer(tracer)
+	ctx := context.Background()
+	exp, err := tracing.NewExporter()
+	if err != nil {
+		log.Fatalf("failed to initialize exporter: %v", err)
+	}
+	// Create a new tracer provider with a batch span processor and the given exporter.
+	tp := tracing.NewTraceProvider(exp)
+	// Handle shutdown properly so nothing leaks.
+	defer func() { _ = tp.Shutdown(ctx) }()
+	otel.SetTracerProvider(tp)
+	// Finally, set the tracer that can be used for this package.
+	tracer := tp.Tracer("tweet")
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	tweetRepository, err := cassandra.NewCassandraTweetRepository()
+	tweetRepository, err := cassandra.NewCassandraTweetRepository(tracer)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,6 +47,9 @@ func main() {
 
 	router := mux.NewRouter()
 	router.StrictSlash(true)
+	router.Use(
+		tracing.ExtractTraceInfoMiddleware,
+		jwt.ExtractJWTUserMiddleware(tracer))
 
 	router.HandleFunc("/tweet/add/", tweetController.AddTweet).Methods("POST")
 
@@ -60,9 +76,4 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Println("server stopped")
-
-	if err := closer.Close(); err != nil {
-		log.Fatal(err)
-	}
-	log.Println("traces saved")
 }
