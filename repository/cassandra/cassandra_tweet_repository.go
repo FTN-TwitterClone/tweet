@@ -1,11 +1,13 @@
 package cassandra
 
 import (
+	"context"
 	"fmt"
 	"github.com/gocql/gocql"
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"os"
+	"tweet/model"
 )
 
 type CassandraTweetRepository struct {
@@ -35,4 +37,15 @@ func NewCassandraTweetRepository(tracer trace.Tracer) (*CassandraTweetRepository
 		tracer:  tracer,
 		session: session,
 	}, nil
+}
+
+func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.Tweet) error {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
+	defer span.End()
+
+	err := r.session.Query("INSERT INTO tweets (id, author, text, timestamp) VALUES (?, ?, ?, ?)").
+		Bind(tweet.ID, tweet.Author, tweet.Text, tweet.Timestamp).
+		Exec()
+
+	return err
 }

@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 	"tweet/controller"
-	"tweet/controller/jwt"
 	"tweet/repository/cassandra"
 	"tweet/service"
 	"tweet/tracing"
@@ -49,9 +48,10 @@ func main() {
 	router.StrictSlash(true)
 	router.Use(
 		tracing.ExtractTraceInfoMiddleware,
-		jwt.ExtractJWTUserMiddleware(tracer))
+		//jwt.ExtractJWTUserMiddleware(tracer), // commented out because we are not connected to the 'auth' service yet.
+	)
 
-	router.HandleFunc("/tweet/add/", tweetController.AddTweet).Methods("POST")
+	router.HandleFunc("/tweet/", tweetController.AddTweet).Methods("POST")
 
 	// start server
 	srv := &http.Server{Addr: "0.0.0.0:8002", Handler: router}
