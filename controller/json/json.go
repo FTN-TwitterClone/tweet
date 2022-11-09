@@ -12,7 +12,7 @@ func EncodeJson(w http.ResponseWriter, v interface{}) error {
 		return err
 	}
 
-	w.Header().Set("Content-Type", "application/model")
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
 
 	return nil
