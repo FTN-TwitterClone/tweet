@@ -51,7 +51,7 @@ func main() {
 		//jwt.ExtractJWTUserMiddleware(tracer), // commented out because we are not connected to the 'auth' service yet.
 	)
 
-	router.HandleFunc("/tweet/", tweetController.AddTweet).Methods("POST")
+	router.HandleFunc("/tweet/", tweetController.CreateTweet).Methods("POST")
 
 	// start server
 	srv := &http.Server{Addr: "0.0.0.0:8002", Handler: router}

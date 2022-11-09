@@ -23,15 +23,11 @@ func NewTweetService(tweetRepository repository.TweetRepository, tracer trace.Tr
 	}
 }
 
-func (s *TweetService) AddTweet(ctx context.Context, tweet model.Tweet) (*model.Tweet, *app_errors.AppError) {
-	serviceCtx, span := s.tracer.Start(ctx, "TweetService.AddTweet")
+func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*model.Tweet, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateTweet")
 	defer span.End()
 
-	//authUser, authErr := model.AuthFromCtx(serviceCtx)
-	//
-	//if authErr != nil {
-	//	return nil, &app_errors.AppError{500, "Cannot extract user from JWT"}
-	//}
+	//authUser := serviceCtx.Value("authUser").(model.AuthUser)
 
 	t := model.Tweet{
 		ID: uuid.New().String(),

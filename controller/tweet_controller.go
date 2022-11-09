@@ -21,7 +21,7 @@ func NewTweetController(tweetService *service.TweetService, tracer trace.Tracer)
 	}
 }
 
-func (c *TweetController) AddTweet(w http.ResponseWriter, req *http.Request) {
+func (c *TweetController) CreateTweet(w http.ResponseWriter, req *http.Request) {
 	ctx, span := c.tracer.Start(req.Context(), "TweetController.AddTweet")
 	defer span.End()
 
@@ -33,7 +33,7 @@ func (c *TweetController) AddTweet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	newTweet, appErr := c.tweetService.AddTweet(ctx, tweet)
+	newTweet, appErr := c.tweetService.CreateTweet(ctx, tweet)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
 		http.Error(w, appErr.Message, appErr.Code)

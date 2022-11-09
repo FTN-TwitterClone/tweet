@@ -1,8 +1,6 @@
 package model
 
 import (
-	"context"
-	"encoding/json"
 	"time"
 )
 
@@ -19,20 +17,4 @@ type Tweet struct {
 	Text      string    `json:"text"`
 	Timestamp time.Time `json:"timestamp"`
 	//Photo  string `json:"photo"` TODO save photo to db
-}
-
-func AuthFromCtx(ctx context.Context) (*AuthUser, error) {
-	jsonData, err := json.Marshal(ctx.Value("authUser"))
-	if err != nil {
-		return nil, err
-	}
-
-	var authUser AuthUser
-	unmarshalErr := json.Unmarshal(jsonData, &authUser)
-
-	if unmarshalErr != nil {
-		return nil, unmarshalErr
-	}
-
-	return &authUser, nil
 }
