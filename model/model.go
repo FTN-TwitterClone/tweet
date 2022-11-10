@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/gocql/gocql"
 	"time"
 )
 
@@ -12,9 +13,14 @@ type AuthUser struct {
 }
 
 type Tweet struct {
-	ID        string    `json:"id"`
-	Author    string    `json:"author"`
-	Text      string    `json:"text"`
-	Timestamp time.Time `json:"timestamp"`
+	ID        gocql.UUID `json:"id"`
+	Username  string     `json:"username"`
+	Text      string     `json:"text"`
+	Timestamp time.Time  `json:"timestamp"`
 	//Photo  string `json:"photo"` TODO save photo to db
+}
+
+type Like struct {
+	Username string     `json:"username"`
+	TweetId  gocql.UUID `json:"tweet_id" validate:"required"`
 }

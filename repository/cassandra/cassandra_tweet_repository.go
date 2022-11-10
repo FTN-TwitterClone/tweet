@@ -43,9 +43,36 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
 	defer span.End()
 
-	err := r.session.Query("INSERT INTO tweets (id, author, text, timestamp) VALUES (?, ?, ?, ?)").
-		Bind(tweet.ID, tweet.Author, tweet.Text, tweet.Timestamp).
+	err := r.session.Query("INSERT INTO tweets (id, username, text, timestamp) VALUES (?, ?, ?, ?)").
+		Bind(tweet.ID, tweet.Username, tweet.Text, tweet.Timestamp).
 		Exec()
 
 	return err
+}
+
+func (r *CassandraTweetRepository) SaveLike(ctx context.Context, like *model.Like) error {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveLike")
+	defer span.End()
+
+	err := r.session.Query("INSERT INTO likes (username, tweet_id) VALUES (?, ?)").
+		Bind(like.Username, like.TweetId).
+		Exec()
+
+	return err
+}
+
+func (r *CassandraTweetRepository) LikeExists(ctx context.Context, username string, tweetId gocql.UUID) (bool, error) {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.LikeExists")
+	defer span.End()
+
+	var count int16
+	if err := r.session.Query("SELECT COUNT(*) FROM likes WHERE username = ? and tweet_id = ?").
+		Bind(username, tweetId).
+		Consistency(gocql.One).
+		Scan(&count); err != nil {
+
+		return false, err
+	}
+
+	return count >= 1, nil
 }

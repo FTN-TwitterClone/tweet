@@ -22,9 +22,9 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
 	ctx := context.Background()
-	exp, err := tracing.NewExporter()
-	if err != nil {
-		log.Fatalf("failed to initialize exporter: %v", err)
+	exp, tracingErr := tracing.NewExporter()
+	if tracingErr != nil {
+		log.Fatalf("failed to initialize exporter: %v", tracingErr)
 	}
 	// Create a new tracer provider with a batch span processor and the given exporter.
 	tp := tracing.NewTraceProvider(exp)
@@ -52,6 +52,7 @@ func main() {
 	)
 
 	router.HandleFunc("/tweet/", tweetController.CreateTweet).Methods("POST")
+	router.HandleFunc("/tweet/like", tweetController.CreateLike).Methods("POST")
 
 	// start server
 	srv := &http.Server{Addr: "0.0.0.0:8002", Handler: router}

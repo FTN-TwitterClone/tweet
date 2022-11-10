@@ -15,14 +15,40 @@ USE tweet_database ;
 *Create table for tweets:*
 ```
 CREATE TABLE tweets (
-    id text,
-    author text,
+    id uuid,
+    username text,
     text text,
     timestamp timestamp,
     PRIMARY KEY (id)
 );
 ```
-*Get all from tweets table:*
+*Create table for user profile:*
 ```
-SELECT * FROM tweets ;
+CREATE TABLE user_profile (
+    username text,
+    timestamp timestamp,
+    tweet_id uuid,
+    PRIMARY KEY (username, timestamp)) 
+    WITH CLUSTERING ORDER BY (timestamp DESC);
+```
+*Create table for user feed:*
+```
+CREATE TABLE user_feed (
+    username text,
+    timestamp timestamp,
+    tweet_id uuid,
+    PRIMARY KEY (username, timestamp)) 
+    WITH CLUSTERING ORDER BY (timestamp DESC);
+```
+*Create table for likes:*
+```
+CREATE TABLE likes (
+    username text,
+    tweet_id uuid,
+    PRIMARY KEY (username, tweet_id)
+);
+```
+*Get all from table:*
+```
+SELECT * FROM <table_name> ;
 ```
