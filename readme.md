@@ -6,7 +6,7 @@ DESCRIBE KEYSPACES ;
 ```
 *Create keyspace (database):*
 ```
-CREATE KEYSPACE tweet_database WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'datacentar1' : 1} ; 
+CREATE KEYSPACE tweet_database WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1} ; 
 ```
 *Use the keyspace:*
 ```
@@ -45,8 +45,12 @@ CREATE TABLE user_feed (
 CREATE TABLE likes (
     username text,
     tweet_id uuid,
-    PRIMARY KEY (username, tweet_id)
+    PRIMARY KEY ((username, tweet_id))
 );
+```
+*Create second index on tweet_id in likes table:*
+```
+CREATE INDEX tweet_id ON likes(tweet_id);
 ```
 *Get all from table:*
 ```

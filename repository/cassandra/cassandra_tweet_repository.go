@@ -60,19 +60,3 @@ func (r *CassandraTweetRepository) SaveLike(ctx context.Context, like *model.Lik
 
 	return err
 }
-
-func (r *CassandraTweetRepository) LikeExists(ctx context.Context, username string, tweetId gocql.UUID) (bool, error) {
-	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.LikeExists")
-	defer span.End()
-
-	var count int16
-	if err := r.session.Query("SELECT COUNT(*) FROM likes WHERE username = ? and tweet_id = ?").
-		Bind(username, tweetId).
-		Consistency(gocql.One).
-		Scan(&count); err != nil {
-
-		return false, err
-	}
-
-	return count >= 1, nil
-}

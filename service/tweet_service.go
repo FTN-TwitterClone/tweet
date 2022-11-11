@@ -53,24 +53,13 @@ func (s *TweetService) CreateLike(ctx context.Context, like model.Like) (*model.
 
 	//authUser := serviceCtx.Value("authUser").(model.AuthUser)
 
-	likeExists, err := s.tweetRepository.LikeExists(serviceCtx, "usernameTest", like.TweetId)
-
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
-	}
-
-	if likeExists {
-		return nil, &app_errors.AppError{500, "You are already liked this tweet."}
-	}
-
 	l := model.Like{
 		//Username:      authUser.Username,
 		Username: "usernameTest",
 		TweetId:  like.TweetId,
 	}
 
-	err = s.tweetRepository.SaveLike(serviceCtx, &l)
+	err := s.tweetRepository.SaveLike(serviceCtx, &l)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
