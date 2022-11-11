@@ -21,7 +21,7 @@ func NewTraceProvider(exp sdktrace.SpanExporter) *sdktrace.TracerProvider {
 		resource.Default(),
 		resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("auth"),
+			semconv.ServiceNameKey.String("tweet"),
 		),
 	)
 

@@ -16,6 +16,11 @@ type CassandraTweetRepository struct {
 }
 
 func NewCassandraTweetRepository(tracer trace.Tracer) (*CassandraTweetRepository, error) {
+	err := resetDB()
+	if err != nil {
+		return nil, err
+	}
+
 	dbport := os.Getenv("DBPORT")
 	db := os.Getenv("DB")
 	host := fmt.Sprintf("%s:%s", db, dbport)
@@ -37,6 +42,37 @@ func NewCassandraTweetRepository(tracer trace.Tracer) (*CassandraTweetRepository
 		tracer:  tracer,
 		session: session,
 	}, nil
+}
+
+func resetDB() error {
+	dbport := os.Getenv("DBPORT")
+	db := os.Getenv("DB")
+	host := fmt.Sprintf("%s:%s", db, dbport)
+
+	cluster := gocql.NewCluster(host)
+	cluster.ProtoVersion = 4
+	cluster.Consistency = gocql.Quorum
+
+	session, err := cluster.CreateSession()
+	defer session.Close()
+
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Connected OK!")
+
+	err = session.Query("DROP KEYSPACE IF EXISTS tweet_database").Exec()
+	if err != nil {
+		return err
+	}
+
+	err = session.Query("CREATE KEYSPACE tweet_database WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1}").Exec()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.Tweet) error {

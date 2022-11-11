@@ -61,7 +61,7 @@ func (c *TweetController) CreateLike(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	
+
 	newLike, appErr := c.tweetService.CreateLike(ctx, like)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
@@ -70,4 +70,8 @@ func (c *TweetController) CreateLike(w http.ResponseWriter, req *http.Request) {
 	}
 
 	json.EncodeJson(w, newLike)
+}
+
+func (c *TweetController) DeleteLike(w http.ResponseWriter, req *http.Request) {
+
 }
