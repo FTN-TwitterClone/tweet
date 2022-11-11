@@ -34,5 +34,7 @@ EXPOSE 8000
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /app/main .
 
+COPY --from=builder /app/migrations ./migrations
+
 # Command to run the executable
 CMD ["./main"]

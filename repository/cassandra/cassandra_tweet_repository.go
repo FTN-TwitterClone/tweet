@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/gocql/gocql"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/cassandra"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"os"
@@ -16,10 +19,12 @@ type CassandraTweetRepository struct {
 }
 
 func NewCassandraTweetRepository(tracer trace.Tracer) (*CassandraTweetRepository, error) {
-	err := resetDB()
+	err := initKeyspace()
 	if err != nil {
 		return nil, err
 	}
+
+	migrateDB()
 
 	dbport := os.Getenv("DBPORT")
 	db := os.Getenv("DB")
@@ -44,7 +49,7 @@ func NewCassandraTweetRepository(tracer trace.Tracer) (*CassandraTweetRepository
 	}, nil
 }
 
-func resetDB() error {
+func initKeyspace() error {
 	dbport := os.Getenv("DBPORT")
 	db := os.Getenv("DB")
 	host := fmt.Sprintf("%s:%s", db, dbport)
@@ -62,14 +67,26 @@ func resetDB() error {
 
 	log.Printf("Connected OK!")
 
-	err = session.Query("DROP KEYSPACE IF EXISTS tweet_database").Exec()
+	err = session.Query("CREATE KEYSPACE IF NOT EXISTS tweet_database WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1}").Exec()
 	if err != nil {
 		return err
 	}
 
-	err = session.Query("CREATE KEYSPACE tweet_database WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1}").Exec()
+	return nil
+}
+
+func migrateDB() error {
+	dbport := os.Getenv("DBPORT")
+	db := os.Getenv("DB")
+	connString := fmt.Sprintf("cassandra://%s:%s/tweet_database", db, dbport)
+
+	m, err := migrate.New("file://migrations", connString)
 	if err != nil {
-		return err
+		log.Fatal(err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatal(err)
 	}
 
 	return nil
