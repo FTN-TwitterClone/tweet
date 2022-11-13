@@ -68,3 +68,18 @@ func (s *TweetService) CreateLike(ctx context.Context, like model.Like) (*model.
 
 	return &l, nil
 }
+
+func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.DeleteLike")
+	defer span.End()
+
+	authUser := serviceCtx.Value("authUser").(model.AuthUser)
+
+	err := s.tweetRepository.DeleteLike(serviceCtx, id, authUser.Username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{500, ""}
+	}
+
+	return id, nil
+}

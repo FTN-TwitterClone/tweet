@@ -113,3 +113,14 @@ func (r *CassandraTweetRepository) SaveLike(ctx context.Context, like *model.Lik
 
 	return err
 }
+
+func (r *CassandraTweetRepository) DeleteLike(ctx context.Context, id string, username string) error {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveLike")
+	defer span.End()
+
+	err := r.session.Query("DELETE FROM likes WHERE username = ? AND tweet_id = ?").
+		Bind(id, username).
+		Exec()
+
+	return err
+}

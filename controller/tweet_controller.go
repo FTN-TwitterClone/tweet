@@ -2,6 +2,7 @@ package controller
 
 import (
 	"github.com/go-playground/validator/v10"
+	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"net/http"
@@ -73,5 +74,17 @@ func (c *TweetController) CreateLike(w http.ResponseWriter, req *http.Request) {
 }
 
 func (c *TweetController) DeleteLike(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.DeleteLike")
+	defer span.End()
 
+	id := mux.Vars(req)["id"]
+
+	id, appErr := c.tweetService.DeleteLike(ctx, id)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, id)
 }
