@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -12,8 +13,10 @@ import (
 	"syscall"
 	"time"
 	"tweet/controller"
+	"tweet/controller/jwt"
 	"tweet/repository/cassandra"
 	"tweet/service"
+	"tweet/tls"
 	"tweet/tracing"
 )
 
@@ -22,9 +25,9 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
 	ctx := context.Background()
-	exp, err := tracing.NewExporter()
-	if err != nil {
-		log.Fatalf("failed to initialize exporter: %v", err)
+	exp, tracingErr := tracing.NewExporter()
+	if tracingErr != nil {
+		log.Fatalf("failed to initialize exporter: %v", tracingErr)
 	}
 	// Create a new tracer provider with a batch span processor and the given exporter.
 	tp := tracing.NewTraceProvider(exp)
@@ -48,16 +51,31 @@ func main() {
 	router.StrictSlash(true)
 	router.Use(
 		tracing.ExtractTraceInfoMiddleware,
-		//jwt.ExtractJWTUserMiddleware(tracer), // commented out because we are not connected to the 'auth' service yet.
+		jwt.ExtractJWTUserMiddleware(tracer),
 	)
 
-	router.HandleFunc("/tweet/", tweetController.CreateTweet).Methods("POST")
+	router.HandleFunc("/tweets/", tweetController.CreateTweet).Methods("POST")
+	router.HandleFunc("/tweets/{id}/like", tweetController.CreateLike).Methods("PUT")
+	router.HandleFunc("/tweets/{id}/unlike", tweetController.DeleteLike).Methods("PUT")
+
+	allowedHeaders := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
+	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"})
+	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
 
 	// start server
-	srv := &http.Server{Addr: "0.0.0.0:8002", Handler: router}
+	srv := &http.Server{
+		Addr:      "0.0.0.0:8000",
+		Handler:   handlers.CORS(allowedHeaders, allowedMethods, allowedOrigins)(router),
+		TLSConfig: tls.GetHTTPServerTLSConfig(),
+	}
+
 	go func() {
 		log.Println("server starting")
-		if err := srv.ListenAndServe(); err != nil {
+
+		certFile := os.Getenv("CERT")
+		keyFile := os.Getenv("KEY")
+
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
 			if err != http.ErrServerClosed {
 				log.Fatal(err)
 			}
