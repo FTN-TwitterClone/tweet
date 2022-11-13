@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -49,21 +48,9 @@ func (c *TweetController) CreateLike(w http.ResponseWriter, req *http.Request) {
 	ctx, span := c.tracer.Start(req.Context(), "TweetController.CreateLike")
 	defer span.End()
 
-	like, err := json.DecodeJson[model.Like](req.Body)
+	id := mux.Vars(req)["id"]
 
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	if err := validator.New().Struct(like); err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	newLike, appErr := c.tweetService.CreateLike(ctx, like)
+	newLike, appErr := c.tweetService.CreateLike(ctx, id)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
 		http.Error(w, appErr.Message, appErr.Code)

@@ -27,12 +27,11 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateTweet")
 	defer span.End()
 
-	//authUser := serviceCtx.Value("authUser").(model.AuthUser)
+	authUser := serviceCtx.Value("authUser").(model.AuthUser)
 
 	t := model.Tweet{
-		ID: gocql.TimeUUID(),
-		//Username:      authUser.Username,
-		Username:  "usernameTest",
+		ID:        gocql.TimeUUID(),
+		Username:  authUser.Username,
 		Text:      tweet.Text,
 		Timestamp: time.Now(),
 	}
@@ -47,19 +46,24 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 	return &t, nil
 }
 
-func (s *TweetService) CreateLike(ctx context.Context, like model.Like) (*model.Like, *app_errors.AppError) {
+func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateLike")
 	defer span.End()
 
-	//authUser := serviceCtx.Value("authUser").(model.AuthUser)
+	authUser := serviceCtx.Value("authUser").(model.AuthUser)
+	tweetId, err := gocql.ParseUUID(id)
 
-	l := model.Like{
-		//Username:      authUser.Username,
-		Username: "usernameTest",
-		TweetId:  like.TweetId,
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, &app_errors.AppError{500, ""}
 	}
 
-	err := s.tweetRepository.SaveLike(serviceCtx, &l)
+	l := model.Like{
+		Username: authUser.Username,
+		TweetId:  tweetId,
+	}
+
+	err = s.tweetRepository.SaveLike(serviceCtx, &l)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())

@@ -78,7 +78,7 @@ func initKeyspace() error {
 func migrateDB() error {
 	dbport := os.Getenv("DBPORT")
 	db := os.Getenv("DB")
-	connString := fmt.Sprintf("cassandra://%s:%s/tweet_database", db, dbport)
+	connString := fmt.Sprintf("cassandra://%s:%s/tweet_database?x-multi-statement=true", db, dbport)
 
 	m, err := migrate.New("file://migrations", connString)
 	if err != nil {
