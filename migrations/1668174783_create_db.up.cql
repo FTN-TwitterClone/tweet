@@ -13,3 +13,12 @@ CREATE TABLE likes (
 );
 
 CREATE INDEX tweet_id ON likes (tweet_id);
+
+CREATE TABLE user_profile (
+    username text,
+    tweet_id uuid,
+    text text,
+    timestamp timestamp,
+    PRIMARY KEY (username, timestamp)
+)
+    WITH CLUSTERING ORDER BY (timestamp DESC);

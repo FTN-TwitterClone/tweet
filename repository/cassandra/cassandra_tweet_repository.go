@@ -99,6 +99,10 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 	err := r.session.Query("INSERT INTO tweets (id, username, text, timestamp) VALUES (?, ?, ?, ?)").
 		Bind(tweet.ID, tweet.Username, tweet.Text, tweet.Timestamp).
 		Exec()
+	//table for rendering tweets on user profile
+	err = r.session.Query("INSERT INTO user_profile (tweet_id, username, text, timestamp) VALUES (?, ?, ?, ?)").
+		Bind(tweet.ID, tweet.Username, tweet.Text, tweet.Timestamp).
+		Exec()
 
 	return err
 }
@@ -123,4 +127,58 @@ func (r *CassandraTweetRepository) DeleteLike(ctx context.Context, id string, us
 		Exec()
 
 	return err
+}
+
+func (r *CassandraTweetRepository) CountLikes(ctx context.Context, tweetId *gocql.UUID) (int16, error) {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.CountLikes")
+	defer span.End()
+
+	var count int16
+	err := r.session.Query("SELECT COUNT(*) FROM likes WHERE tweet_id = ?").
+		Bind(tweetId).Consistency(gocql.One).Scan(&count)
+
+	return count, err
+}
+
+func (r *CassandraTweetRepository) LikedByMe(ctx context.Context, tweetId *gocql.UUID) (bool, error) {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.LikedByMe")
+	defer span.End()
+
+	authUser := ctx.Value("authUser").(model.AuthUser)
+
+	var count int16
+	err := r.session.Query("SELECT COUNT(*) FROM likes WHERE tweet_id = ? and username = ?").
+		Bind(tweetId, authUser.Username).Consistency(gocql.One).Scan(&count)
+
+	return count >= 1, err
+}
+
+func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, username string) (*[]model.TweetDTO, error) {
+	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetTweetsForProfile")
+	defer span.End()
+
+	var tweets []model.TweetDTO
+	var tweet model.TweetDTO
+
+	var err error
+
+	iter := r.session.Query("SELECT username, tweet_id, text, timestamp FROM user_profile WHERE username = ?").
+		Bind(username).Iter()
+
+	for iter.Scan(&tweet.Username, &tweet.ID, &tweet.Text, &tweet.Timestamp) {
+
+		tweet.LikesCount, err = r.CountLikes(repoCtx, &tweet.ID)
+		if err != nil {
+			tweet.LikesCount = 0
+		}
+
+		tweet.LikedByMe, err = r.LikedByMe(repoCtx, &tweet.ID)
+		if err != nil {
+			tweet.LikedByMe = false
+		}
+
+		tweets = append(tweets, tweet)
+	}
+
+	return &tweets, nil
 }

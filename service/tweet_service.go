@@ -87,3 +87,16 @@ func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_
 
 	return id, nil
 }
+
+func (s *TweetService) GetProfileTweets(ctx context.Context, username string) (*[]model.TweetDTO, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetProfileTweets")
+	defer span.End()
+
+	tweets, err := s.tweetRepository.GetProfileTweets(serviceCtx, username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, &app_errors.AppError{500, ""}
+	}
+
+	return tweets, nil
+}

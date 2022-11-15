@@ -75,3 +75,19 @@ func (c *TweetController) DeleteLike(w http.ResponseWriter, req *http.Request) {
 
 	json.EncodeJson(w, id)
 }
+
+func (c *TweetController) GetProfileTweets(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.GetProfileTweets")
+	defer span.End()
+
+	username := mux.Vars(req)["username"]
+
+	tweets, appErr := c.tweetService.GetProfileTweets(ctx, username)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, tweets)
+}
