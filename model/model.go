@@ -16,7 +16,7 @@ type Tweet struct {
 	ID        gocql.UUID `json:"id"`
 	Username  string     `json:"username"`
 	Text      string     `json:"text"`
-	Timestamp time.Time  `json:"timestamp"`
+	TimeStamp time.Time  `json:"timestamp"`
 	//Photo  string `json:"photo"` TODO save photo to db
 }
 

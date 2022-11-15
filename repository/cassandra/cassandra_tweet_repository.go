@@ -96,12 +96,8 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
 	defer span.End()
 
-	err := r.session.Query("INSERT INTO tweets (id, username, text, timestamp) VALUES (?, ?, ?, ?)").
-		Bind(tweet.ID, tweet.Username, tweet.Text, tweet.Timestamp).
-		Exec()
-	//table for rendering tweets on user profile
-	err = r.session.Query("INSERT INTO user_profile (tweet_id, username, text, timestamp) VALUES (?, ?, ?, ?)").
-		Bind(tweet.ID, tweet.Username, tweet.Text, tweet.Timestamp).
+	err := r.session.Query("INSERT INTO user_profile (tweet_id, username, text) VALUES (?, ?, ?)").
+		Bind(tweet.ID, tweet.Username, tweet.Text).
 		Exec()
 
 	return err
@@ -153,7 +149,7 @@ func (r *CassandraTweetRepository) LikedByMe(ctx context.Context, tweetId *gocql
 	return count >= 1, err
 }
 
-func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, username string) (*[]model.TweetDTO, error) {
+func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, error) {
 	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetTweetsForProfile")
 	defer span.End()
 
@@ -161,9 +157,15 @@ func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, usernam
 	var tweet model.TweetDTO
 
 	var err error
+	var iter *gocql.Iter
 
-	iter := r.session.Query("SELECT username, tweet_id, text, timestamp FROM user_profile WHERE username = ?").
-		Bind(username).Iter()
+	if len(lastTweetId) > 0 {
+		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? AND tweet_id > ? LIMIT 20").
+			Bind(username, lastTweetId).Iter()
+	} else {
+		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? LIMIT 20").
+			Bind(username).Iter()
+	}
 
 	for iter.Scan(&tweet.Username, &tweet.ID, &tweet.Text, &tweet.Timestamp) {
 
