@@ -184,3 +184,22 @@ func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, usernam
 
 	return &tweets, nil
 }
+
+func (r *CassandraTweetRepository) GetLikesByTweet(ctx context.Context, tweetId string) *[]model.Like {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetLikesByTweet")
+	defer span.End()
+
+	var likes []model.Like
+	var like model.Like
+
+	var iter *gocql.Iter
+
+	iter = r.session.Query("SELECT username, tweet_id FROM likes WHERE tweet_id = ?").
+		Bind(tweetId).Iter()
+
+	for iter.Scan(&like.Username, &like.TweetId) {
+		likes = append(likes, like)
+	}
+
+	return &likes
+}

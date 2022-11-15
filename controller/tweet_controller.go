@@ -92,3 +92,14 @@ func (c *TweetController) GetProfileTweets(w http.ResponseWriter, req *http.Requ
 
 	json.EncodeJson(w, tweets)
 }
+
+func (c *TweetController) GetLikesByTweet(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.GetLikesByTweet")
+	defer span.End()
+
+	tweetId := mux.Vars(req)["id"]
+
+	tweets := c.tweetService.GetLikesByTweet(ctx, tweetId)
+
+	json.EncodeJson(w, tweets)
+}

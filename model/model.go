@@ -31,5 +31,5 @@ type TweetDTO struct {
 
 type Like struct {
 	Username string     `json:"username"`
-	TweetId  gocql.UUID `json:"tweet_id" validate:"required"`
+	TweetId  gocql.UUID `json:"tweet_id"`
 }

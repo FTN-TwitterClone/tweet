@@ -100,3 +100,12 @@ func (s *TweetService) GetProfileTweets(ctx context.Context, username string, la
 
 	return tweets, nil
 }
+
+func (s *TweetService) GetLikesByTweet(ctx context.Context, tweetId string) *[]model.Like {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetLikesByTweet")
+	defer span.End()
+
+	likes := s.tweetRepository.GetLikesByTweet(serviceCtx, tweetId)
+
+	return likes
+}
