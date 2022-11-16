@@ -81,7 +81,7 @@ func (c *TweetController) GetProfileTweets(w http.ResponseWriter, req *http.Requ
 	defer span.End()
 
 	username := mux.Vars(req)["username"]
-	lastTweetId := req.Header.Get("last-tweet-id")
+	lastTweetId := req.Header.Get("Tweet-ID")
 
 	tweets, appErr := c.tweetService.GetProfileTweets(ctx, username, lastTweetId)
 	if appErr != nil {

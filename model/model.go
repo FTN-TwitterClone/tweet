@@ -25,11 +25,11 @@ type TweetDTO struct {
 	Username   string     `json:"username"`
 	Text       string     `json:"text"`
 	Timestamp  time.Time  `json:"timestamp"`
-	LikesCount int16      `json:"likes_count"`
-	LikedByMe  bool       `json:"liked_by_me"`
+	LikesCount int16      `json:"likesCount"`
+	LikedByMe  bool       `json:"likedByMe"`
 }
 
 type Like struct {
 	Username string     `json:"username"`
-	TweetId  gocql.UUID `json:"tweet_id"`
+	TweetId  gocql.UUID `json:"tweetId"`
 }

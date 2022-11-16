@@ -160,7 +160,7 @@ func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, usernam
 	var iter *gocql.Iter
 
 	if len(lastTweetId) > 0 {
-		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? AND tweet_id > ? LIMIT 20").
+		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? AND tweet_id < ? LIMIT 20").
 			Bind(username, lastTweetId).Iter()
 	} else {
 		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? LIMIT 20").
