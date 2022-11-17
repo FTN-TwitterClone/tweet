@@ -96,8 +96,8 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
 	defer span.End()
 
-	err := r.session.Query("INSERT INTO tweets (id, username, text, timestamp) VALUES (?, ?, ?, ?)").
-		Bind(tweet.ID, tweet.Username, tweet.Text, tweet.Timestamp).
+	err := r.session.Query("INSERT INTO user_profile (tweet_id, username, text) VALUES (?, ?, ?)").
+		Bind(tweet.ID, tweet.Username, tweet.Text).
 		Exec()
 
 	return err
@@ -123,4 +123,83 @@ func (r *CassandraTweetRepository) DeleteLike(ctx context.Context, id string, us
 		Exec()
 
 	return err
+}
+
+func (r *CassandraTweetRepository) CountLikes(ctx context.Context, tweetId *gocql.UUID) (int16, error) {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.CountLikes")
+	defer span.End()
+
+	var count int16
+	err := r.session.Query("SELECT COUNT(*) FROM likes WHERE tweet_id = ?").
+		Bind(tweetId).Consistency(gocql.One).Scan(&count)
+
+	return count, err
+}
+
+func (r *CassandraTweetRepository) LikedByMe(ctx context.Context, tweetId *gocql.UUID) (bool, error) {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.LikedByMe")
+	defer span.End()
+
+	authUser := ctx.Value("authUser").(model.AuthUser)
+
+	var count int16
+	err := r.session.Query("SELECT COUNT(*) FROM likes WHERE tweet_id = ? and username = ?").
+		Bind(tweetId, authUser.Username).Consistency(gocql.One).Scan(&count)
+
+	return count >= 1, err
+}
+
+func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, error) {
+	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetTweetsForProfile")
+	defer span.End()
+
+	var tweets []model.TweetDTO
+	var tweet model.TweetDTO
+
+	var err error
+	var iter *gocql.Iter
+
+	if len(lastTweetId) > 0 {
+		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? AND tweet_id < ? LIMIT 20").
+			Bind(username, lastTweetId).Iter()
+	} else {
+		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? LIMIT 20").
+			Bind(username).Iter()
+	}
+
+	for iter.Scan(&tweet.Username, &tweet.ID, &tweet.Text, &tweet.Timestamp) {
+
+		tweet.LikesCount, err = r.CountLikes(repoCtx, &tweet.ID)
+		if err != nil {
+			tweet.LikesCount = 0
+		}
+
+		tweet.LikedByMe, err = r.LikedByMe(repoCtx, &tweet.ID)
+		if err != nil {
+			tweet.LikedByMe = false
+		}
+
+		tweets = append(tweets, tweet)
+	}
+
+	return &tweets, nil
+}
+
+func (r *CassandraTweetRepository) GetLikesByTweet(ctx context.Context, tweetId string) *[]model.Like {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetLikesByTweet")
+	defer span.End()
+
+	var likes []model.Like
+	var like model.Like
+
+	var iter *gocql.Iter
+
+	iter = r.session.Query("SELECT username, tweet_id FROM likes WHERE tweet_id = ?").
+		Bind(tweetId).Iter()
+
+	for iter.Scan(&like.Username, &like.TweetId) {
+		likes = append(likes, like)
+	}
+
+	return &likes
 }

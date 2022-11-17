@@ -5,7 +5,6 @@ import (
 	"github.com/gocql/gocql"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"time"
 	"tweet/app_errors"
 	"tweet/model"
 	"tweet/repository"
@@ -28,12 +27,13 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 	defer span.End()
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
+	id := gocql.TimeUUID()
 
 	t := model.Tweet{
-		ID:        gocql.TimeUUID(),
+		ID:        id,
 		Username:  authUser.Username,
 		Text:      tweet.Text,
-		Timestamp: time.Now(),
+		TimeStamp: id.Time(),
 	}
 
 	err := s.tweetRepository.SaveTweet(serviceCtx, &t)
@@ -86,4 +86,26 @@ func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_
 	}
 
 	return id, nil
+}
+
+func (s *TweetService) GetProfileTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetProfileTweets")
+	defer span.End()
+
+	tweets, err := s.tweetRepository.GetProfileTweets(serviceCtx, username, lastTweetId)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, &app_errors.AppError{500, ""}
+	}
+
+	return tweets, nil
+}
+
+func (s *TweetService) GetLikesByTweet(ctx context.Context, tweetId string) *[]model.Like {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetLikesByTweet")
+	defer span.End()
+
+	likes := s.tweetRepository.GetLikesByTweet(serviceCtx, tweetId)
+
+	return likes
 }
