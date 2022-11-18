@@ -60,7 +60,7 @@ func main() {
 	router.HandleFunc("/tweets/profile/{username}", tweetController.GetProfileTweets).Methods("GET")
 	router.HandleFunc("/tweets/{id}/likes", tweetController.GetLikesByTweet).Methods("GET")
 
-	allowedHeaders := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}) //add "Tweet-ID"
+	allowedHeaders := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"})
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
 
