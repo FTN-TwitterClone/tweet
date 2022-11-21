@@ -60,6 +60,7 @@ func main() {
 	router.HandleFunc("/tweets/profile/{username}", tweetController.GetTimelineTweets).Methods("GET")
 	router.HandleFunc("/tweets/{id}/likes", tweetController.GetLikesByTweet).Methods("GET")
 	router.HandleFunc("/tweets/feed", tweetController.GetHomeFeed).Methods("GET")
+	router.HandleFunc("/tweets/{id}/retweet", tweetController.Retweet).Methods("POST")
 
 	allowedHeaders := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"})

@@ -13,21 +13,25 @@ type AuthUser struct {
 }
 
 type Tweet struct {
-	ID        gocql.UUID `json:"id"`
-	PostedBy  string     `json:"postedBy"`
-	Text      string     `json:"text"`
-	TimeStamp time.Time  `json:"timestamp"`
+	ID               gocql.UUID `json:"id"`
+	PostedBy         string     `json:"postedBy"`
+	Text             string     `json:"text"`
+	TimeStamp        time.Time  `json:"timestamp"`
+	Retweet          bool       `json:"retweet"`
+	OriginalPostedBy string     `json:"originalPostedBy"`
 	//Photo  string `json:"photo"` TODO save photo to db
 }
 
 type TweetDTO struct {
-	ID         gocql.UUID `json:"id"`
-	PostedBy   string     `json:"postedBy"`
-	Username   string     `json:"username"`
-	Text       string     `json:"text"`
-	Timestamp  time.Time  `json:"timestamp"`
-	LikesCount int16      `json:"likesCount"`
-	LikedByMe  bool       `json:"likedByMe"`
+	ID               gocql.UUID `json:"id"`
+	PostedBy         string     `json:"postedBy"`
+	Username         string     `json:"username"`
+	Text             string     `json:"text"`
+	Timestamp        time.Time  `json:"timestamp"`
+	Retweet          bool       `json:"retweet"`
+	OriginalPostedBy string     `json:"originalPostedBy"`
+	LikesCount       int16      `json:"likesCount"`
+	LikedByMe        bool       `json:"likedByMe"`
 }
 
 type Like struct {

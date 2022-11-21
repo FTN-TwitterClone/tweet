@@ -119,3 +119,19 @@ func (c *TweetController) GetHomeFeed(w http.ResponseWriter, req *http.Request) 
 
 	json.EncodeJson(w, tweets)
 }
+
+func (c *TweetController) Retweet(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.Retweet")
+	defer span.End()
+
+	tweetId := mux.Vars(req)["id"]
+
+	retweet, appErr := c.tweetService.Retweet(ctx, tweetId)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, retweet)
+}

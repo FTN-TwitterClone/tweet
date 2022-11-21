@@ -124,3 +124,35 @@ func (s *TweetService) GetHomeFeed(ctx context.Context, lastTweetId string) (*[]
 
 	return tweets, nil
 }
+
+func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Tweet, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.Retweet")
+	defer span.End()
+
+	authUser := serviceCtx.Value("authUser").(model.AuthUser)
+
+	tweet, err := s.tweetRepository.FindTweet(serviceCtx, tweetId)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, &app_errors.AppError{500, "Tweet not found"}
+	}
+
+	id := gocql.TimeUUID()
+	t := model.Tweet{
+		ID:               id,
+		PostedBy:         authUser.Username,
+		Text:             tweet.Text,
+		TimeStamp:        id.Time(),
+		Retweet:          true,
+		OriginalPostedBy: tweet.PostedBy,
+	}
+
+	err = s.tweetRepository.SaveTweet(serviceCtx, &t)
+
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, &app_errors.AppError{500, ""}
+	}
+
+	return &t, nil
+}
