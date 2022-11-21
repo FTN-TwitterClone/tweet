@@ -31,7 +31,7 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 
 	t := model.Tweet{
 		ID:        id,
-		Username:  authUser.Username,
+		PostedBy:  authUser.Username,
 		Text:      tweet.Text,
 		TimeStamp: id.Time(),
 	}
@@ -88,11 +88,11 @@ func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_
 	return id, nil
 }
 
-func (s *TweetService) GetProfileTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, *app_errors.AppError) {
+func (s *TweetService) GetTimelineTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetProfileTweets")
 	defer span.End()
 
-	tweets, err := s.tweetRepository.GetProfileTweets(serviceCtx, username, lastTweetId)
+	tweets, err := s.tweetRepository.GetTimelineTweets(serviceCtx, username, lastTweetId)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, &app_errors.AppError{500, ""}
@@ -108,4 +108,19 @@ func (s *TweetService) GetLikesByTweet(ctx context.Context, tweetId string) *[]m
 	likes := s.tweetRepository.GetLikesByTweet(serviceCtx, tweetId)
 
 	return likes
+}
+
+func (s *TweetService) GetHomeFeed(ctx context.Context, lastTweetId string) (*[]model.TweetDTO, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetHomeFeed")
+	defer span.End()
+
+	authUser := serviceCtx.Value("authUser").(model.AuthUser)
+
+	tweets, err := s.tweetRepository.GetFeedTweets(serviceCtx, authUser.Username, lastTweetId)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, &app_errors.AppError{500, ""}
+	}
+
+	return tweets, nil
 }

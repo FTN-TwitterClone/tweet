@@ -96,9 +96,22 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
 	defer span.End()
 
-	err := r.session.Query("INSERT INTO user_profile (tweet_id, username, text) VALUES (?, ?, ?)").
-		Bind(tweet.ID, tweet.Username, tweet.Text).
+	followers := []string{"Username1", "Username2", "Username3"}
+
+	err := r.session.Query("INSERT INTO timeline_by_user (tweet_id, posted_by, text) VALUES (?, ?, ?)").
+		Bind(tweet.ID, tweet.PostedBy, tweet.Text).
 		Exec()
+
+	//to see my tweets in the feed
+	err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text) VALUES (?, ?, ?, ?)").
+		Bind(tweet.ID, tweet.PostedBy, tweet.PostedBy, tweet.Text).
+		Exec()
+
+	for _, follower := range followers {
+		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text) VALUES (?, ?, ?, ?)").
+			Bind(tweet.ID, follower, tweet.PostedBy, tweet.Text).
+			Exec()
+	}
 
 	return err
 }
@@ -149,8 +162,8 @@ func (r *CassandraTweetRepository) LikedByMe(ctx context.Context, tweetId *gocql
 	return count >= 1, err
 }
 
-func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, error) {
-	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetTweetsForProfile")
+func (r *CassandraTweetRepository) GetTimelineTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, error) {
+	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetTimelineTweets")
 	defer span.End()
 
 	var tweets []model.TweetDTO
@@ -160,14 +173,14 @@ func (r *CassandraTweetRepository) GetProfileTweets(ctx context.Context, usernam
 	var iter *gocql.Iter
 
 	if len(lastTweetId) > 0 {
-		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? AND tweet_id < ? LIMIT 20").
+		iter = r.session.Query("SELECT posted_by, tweet_id, text, toTimestamp(tweet_id) FROM timeline_by_user WHERE posted_by = ? AND tweet_id < ? LIMIT 20").
 			Bind(username, lastTweetId).Iter()
 	} else {
-		iter = r.session.Query("SELECT username, tweet_id, text, toTimestamp(tweet_id) FROM user_profile WHERE username = ? LIMIT 20").
+		iter = r.session.Query("SELECT posted_by, tweet_id, text, toTimestamp(tweet_id) FROM timeline_by_user WHERE posted_by = ? LIMIT 20").
 			Bind(username).Iter()
 	}
 
-	for iter.Scan(&tweet.Username, &tweet.ID, &tweet.Text, &tweet.Timestamp) {
+	for iter.Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.Timestamp) {
 
 		tweet.LikesCount, err = r.CountLikes(repoCtx, &tweet.ID)
 		if err != nil {
@@ -202,4 +215,40 @@ func (r *CassandraTweetRepository) GetLikesByTweet(ctx context.Context, tweetId 
 	}
 
 	return &likes
+}
+
+func (r *CassandraTweetRepository) GetFeedTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, error) {
+	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetFeedTweets")
+	defer span.End()
+
+	var tweets []model.TweetDTO
+	var tweet model.TweetDTO
+
+	var err error
+	var iter *gocql.Iter
+
+	if len(lastTweetId) > 0 {
+		iter = r.session.Query("SELECT tweet_id, posted_by, username, text, toTimestamp(tweet_id) FROM feed_by_user WHERE username = ? AND tweet_id < ? LIMIT 20").
+			Bind(username, lastTweetId).Iter()
+	} else {
+		iter = r.session.Query("SELECT tweet_id, posted_by, username, text, toTimestamp(tweet_id) FROM feed_by_user WHERE username = ? LIMIT 20").
+			Bind(username).Iter()
+	}
+
+	for iter.Scan(&tweet.ID, &tweet.PostedBy, &tweet.Username, &tweet.Text, &tweet.Timestamp) {
+
+		tweet.LikesCount, err = r.CountLikes(repoCtx, &tweet.ID)
+		if err != nil {
+			tweet.LikesCount = 0
+		}
+
+		tweet.LikedByMe, err = r.LikedByMe(repoCtx, &tweet.ID)
+		if err != nil {
+			tweet.LikedByMe = false
+		}
+
+		tweets = append(tweets, tweet)
+	}
+
+	return &tweets, nil
 }

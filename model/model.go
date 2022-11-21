@@ -14,7 +14,7 @@ type AuthUser struct {
 
 type Tweet struct {
 	ID        gocql.UUID `json:"id"`
-	Username  string     `json:"username"`
+	PostedBy  string     `json:"postedBy"`
 	Text      string     `json:"text"`
 	TimeStamp time.Time  `json:"timestamp"`
 	//Photo  string `json:"photo"` TODO save photo to db
@@ -22,6 +22,7 @@ type Tweet struct {
 
 type TweetDTO struct {
 	ID         gocql.UUID `json:"id"`
+	PostedBy   string     `json:"postedBy"`
 	Username   string     `json:"username"`
 	Text       string     `json:"text"`
 	Timestamp  time.Time  `json:"timestamp"`
