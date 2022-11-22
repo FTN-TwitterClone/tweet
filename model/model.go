@@ -25,7 +25,6 @@ type Tweet struct {
 type TweetDTO struct {
 	ID               gocql.UUID `json:"id"`
 	PostedBy         string     `json:"postedBy"`
-	Username         string     `json:"username"`
 	Text             string     `json:"text"`
 	Timestamp        time.Time  `json:"timestamp"`
 	Retweet          bool       `json:"retweet"`

@@ -228,14 +228,14 @@ func (r *CassandraTweetRepository) GetFeedTweets(ctx context.Context, username s
 	var iter *gocql.Iter
 
 	if len(lastTweetId) > 0 {
-		iter = r.session.Query("SELECT tweet_id, posted_by, username, text, retweet, original_posted_by, toTimestamp(tweet_id) FROM feed_by_user WHERE username = ? AND tweet_id < ? LIMIT 20").
+		iter = r.session.Query("SELECT tweet_id, posted_by, text, retweet, original_posted_by, toTimestamp(tweet_id) FROM feed_by_user WHERE username = ? AND tweet_id < ? LIMIT 20").
 			Bind(username, lastTweetId).Iter()
 	} else {
-		iter = r.session.Query("SELECT tweet_id, posted_by, username, text, retweet, original_posted_by, toTimestamp(tweet_id) FROM feed_by_user WHERE username = ? LIMIT 20").
+		iter = r.session.Query("SELECT tweet_id, posted_by, text, retweet, original_posted_by, toTimestamp(tweet_id) FROM feed_by_user WHERE username = ? LIMIT 20").
 			Bind(username).Iter()
 	}
 
-	for iter.Scan(&tweet.ID, &tweet.PostedBy, &tweet.Username, &tweet.Text, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp) {
+	for iter.Scan(&tweet.ID, &tweet.PostedBy, &tweet.Text, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp) {
 
 		tweet.LikesCount, err = r.CountLikes(repoCtx, &tweet.ID)
 		if err != nil {
