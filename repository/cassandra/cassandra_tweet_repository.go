@@ -264,3 +264,37 @@ func (r *CassandraTweetRepository) FindTweet(ctx context.Context, tweetId string
 
 	return tweet, err
 }
+
+func (r *CassandraTweetRepository) FindUserTweets(ctx context.Context, username string) []model.Tweet {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.FindUserTweets")
+	defer span.End()
+
+	var tweets []model.Tweet
+	var tweet model.Tweet
+
+	iter := r.session.Query("SELECT posted_by, tweet_id, text, retweet, original_posted_by FROM timeline_by_user WHERE posted_by = ?").
+		Bind(username).Iter()
+
+	for iter.Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.Retweet, &tweet.OriginalPostedBy) {
+		tweets = append(tweets, tweet)
+	}
+
+	return tweets
+}
+
+func (r *CassandraTweetRepository) UpdateFeed(ctx context.Context, username string) error {
+	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.UpdateFeed")
+	defer span.End()
+
+	tweets := r.FindUserTweets(repoCtx, username)
+	authUser := repoCtx.Value("authUser").(model.AuthUser)
+
+	var err error
+	for _, tweet := range tweets {
+		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?)").
+			Bind(tweet.ID, authUser.Username, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
+			Exec()
+	}
+
+	return err
+}

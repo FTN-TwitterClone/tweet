@@ -15,5 +15,6 @@ type TweetRepository interface {
 	GetLikesByTweet(ctx context.Context, tweetId string) *[]model.Like
 	CountLikes(ctx context.Context, tweetId *gocql.UUID) (int16, error)
 	FindTweet(ctx context.Context, tweetId string) (model.Tweet, error)
+	FindUserTweets(ctx context.Context, username string) []model.Tweet
 	LikedByMe(ctx context.Context, tweetId *gocql.UUID) (bool, error)
 }
