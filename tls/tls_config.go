@@ -29,14 +29,14 @@ func GetHTTPServerTLSConfig() *tls.Config {
 	}
 }
 
-func GetgRPCClientTLSConfig() *tls.Config {
-	clientCertPath := os.Getenv("CERT")
-	clientKeyPath := os.Getenv("KEY")
+func GetgRPCServerTLSConfig() *tls.Config {
+	serverCertPath := os.Getenv("CERT")
+	serverKeyPath := os.Getenv("KEY")
 	caCertPath := os.Getenv("CA_CERT")
 
-	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
+	serverCert, err := tls.LoadX509KeyPair(serverCertPath, serverKeyPath)
 	if err != nil {
-		log.Fatalf("Failed to load client certificate and key. %s.", err)
+		log.Fatalf("Failed to load server certificate and key. %s.", err)
 	}
 
 	trustedCert, err := ioutil.ReadFile(caCertPath)
@@ -50,8 +50,9 @@ func GetgRPCClientTLSConfig() *tls.Config {
 	}
 
 	return &tls.Config{
-		Certificates: []tls.Certificate{clientCert},
+		Certificates: []tls.Certificate{serverCert},
 		RootCAs:      certPool,
+		ClientCAs:    certPool,
 		MinVersion:   tls.VersionTLS13,
 		MaxVersion:   tls.VersionTLS13,
 	}
