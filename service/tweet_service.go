@@ -137,6 +137,10 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		return nil, &app_errors.AppError{500, "Tweet not found"}
 	}
 
+	if tweet.Retweet {
+		return nil, &app_errors.AppError{406, "You cant retweet a retweet"}
+	}
+
 	id := gocql.TimeUUID()
 	t := model.Tweet{
 		ID:               id,
