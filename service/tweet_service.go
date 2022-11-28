@@ -167,7 +167,7 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 }
 
 func getgRPCConnection(address string) (*grpc.ClientConn, error) {
-	creds := credentials.NewTLS(tls.GetgRPCServerTLSConfig())
+	creds := credentials.NewTLS(tls.GetgRPCClientTLSConfig())
 
 	conn, err := grpc.DialContext(
 		context.Background(),

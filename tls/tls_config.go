@@ -57,3 +57,31 @@ func GetgRPCServerTLSConfig() *tls.Config {
 		MaxVersion:   tls.VersionTLS13,
 	}
 }
+
+func GetgRPCClientTLSConfig() *tls.Config {
+	clientCertPath := os.Getenv("CERT")
+	clientKeyPath := os.Getenv("KEY")
+	caCertPath := os.Getenv("CA_CERT")
+
+	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
+	if err != nil {
+		log.Fatalf("Failed to load client certificate and key. %s.", err)
+	}
+
+	trustedCert, err := ioutil.ReadFile(caCertPath)
+	if err != nil {
+		log.Fatalf("Failed to load trusted certificate. %s.", err)
+	}
+
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(trustedCert) {
+		log.Fatalf("Failed to append trusted certificate to certificate pool. %s.", err)
+	}
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      certPool,
+		MinVersion:   tls.VersionTLS13,
+		MaxVersion:   tls.VersionTLS13,
+	}
+}
