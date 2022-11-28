@@ -3,11 +3,16 @@ package service
 import (
 	"context"
 	"github.com/gocql/gocql"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"log"
 	"tweet/app_errors"
 	"tweet/model"
 	"tweet/repository"
+	"tweet/tls"
 )
 
 type TweetService struct {
@@ -159,4 +164,21 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 	}
 
 	return &t, nil
+}
+
+func getgRPCConnection(address string) (*grpc.ClientConn, error) {
+	creds := credentials.NewTLS(tls.GetgRPCServerTLSConfig())
+
+	conn, err := grpc.DialContext(
+		context.Background(),
+		address,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+	)
+
+	if err != nil {
+		log.Fatalf("Failed to start gRPC connection: %v", err)
+	}
+
+	return conn, err
 }
