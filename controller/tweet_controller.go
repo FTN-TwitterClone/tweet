@@ -76,14 +76,14 @@ func (c *TweetController) DeleteLike(w http.ResponseWriter, req *http.Request) {
 	json.EncodeJson(w, id)
 }
 
-func (c *TweetController) GetProfileTweets(w http.ResponseWriter, req *http.Request) {
+func (c *TweetController) GetTimelineTweets(w http.ResponseWriter, req *http.Request) {
 	ctx, span := c.tracer.Start(req.Context(), "TweetController.GetProfileTweets")
 	defer span.End()
 
 	username := mux.Vars(req)["username"]
 	lastTweetId := req.URL.Query().Get("beforeId")
 
-	tweets, appErr := c.tweetService.GetProfileTweets(ctx, username, lastTweetId)
+	tweets, appErr := c.tweetService.GetTimelineTweets(ctx, username, lastTweetId)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
 		http.Error(w, appErr.Message, appErr.Code)
@@ -102,4 +102,36 @@ func (c *TweetController) GetLikesByTweet(w http.ResponseWriter, req *http.Reque
 	tweets := c.tweetService.GetLikesByTweet(ctx, tweetId)
 
 	json.EncodeJson(w, tweets)
+}
+
+func (c *TweetController) GetHomeFeed(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.GetHomeFeed")
+	defer span.End()
+
+	lastTweetId := req.URL.Query().Get("beforeId")
+
+	tweets, appErr := c.tweetService.GetHomeFeed(ctx, lastTweetId)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, tweets)
+}
+
+func (c *TweetController) Retweet(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.Retweet")
+	defer span.End()
+
+	tweetId := mux.Vars(req)["id"]
+
+	retweet, appErr := c.tweetService.Retweet(ctx, tweetId)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, retweet)
 }
