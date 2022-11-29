@@ -3,6 +3,7 @@ package cassandra
 import (
 	"context"
 	"fmt"
+	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/gocql/gocql"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/cassandra"
@@ -92,11 +93,9 @@ func migrateDB() error {
 	return nil
 }
 
-func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.Tweet) error {
+func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.Tweet, usernames []*social_graph.SocialGraphUsername) error {
 	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
 	defer span.End()
-
-	followers := []string{"Username1", "Username2", "Username3"}
 
 	err := r.session.Query("INSERT INTO timeline_by_user (tweet_id, posted_by, text, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?)").
 		Bind(tweet.ID, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
@@ -107,9 +106,9 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 		Bind(tweet.ID, tweet.PostedBy, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
 		Exec()
 
-	for _, follower := range followers {
+	for _, follower := range usernames {
 		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?)").
-			Bind(tweet.ID, follower, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
+			Bind(tweet.ID, follower.Username, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
 			Exec()
 	}
 
@@ -162,7 +161,7 @@ func (r *CassandraTweetRepository) LikedByMe(ctx context.Context, tweetId *gocql
 	return count >= 1, err
 }
 
-func (r *CassandraTweetRepository) GetTimelineTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, error) {
+func (r *CassandraTweetRepository) GetTimelineTweets(ctx context.Context, username string, lastTweetId string) ([]model.TweetDTO, error) {
 	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetTimelineTweets")
 	defer span.End()
 
@@ -195,7 +194,7 @@ func (r *CassandraTweetRepository) GetTimelineTweets(ctx context.Context, userna
 		tweets = append(tweets, tweet)
 	}
 
-	return &tweets, nil
+	return tweets, nil
 }
 
 func (r *CassandraTweetRepository) GetLikesByTweet(ctx context.Context, tweetId string) *[]model.Like {
@@ -217,7 +216,7 @@ func (r *CassandraTweetRepository) GetLikesByTweet(ctx context.Context, tweetId 
 	return &likes
 }
 
-func (r *CassandraTweetRepository) GetFeedTweets(ctx context.Context, username string, lastTweetId string) (*[]model.TweetDTO, error) {
+func (r *CassandraTweetRepository) GetFeedTweets(ctx context.Context, username string, lastTweetId string) ([]model.TweetDTO, error) {
 	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.GetFeedTweets")
 	defer span.End()
 
@@ -250,7 +249,7 @@ func (r *CassandraTweetRepository) GetFeedTweets(ctx context.Context, username s
 		tweets = append(tweets, tweet)
 	}
 
-	return &tweets, nil
+	return tweets, nil
 }
 
 func (r *CassandraTweetRepository) FindTweet(ctx context.Context, tweetId string) (model.Tweet, error) {
