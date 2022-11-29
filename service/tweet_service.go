@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"log"
 	"tweet/app_errors"
+	"tweet/circuit_breaker"
 	"tweet/model"
 	"tweet/repository"
 	"tweet/tls"
@@ -21,12 +22,14 @@ import (
 type TweetService struct {
 	tweetRepository repository.TweetRepository
 	tracer          trace.Tracer
+	socialGraphCB   *circuit_breaker.SocialGraphCircuitBreaker
 }
 
-func NewTweetService(tweetRepository repository.TweetRepository, tracer trace.Tracer) *TweetService {
+func NewTweetService(tweetRepository repository.TweetRepository, tracer trace.Tracer, socialGraphCB *circuit_breaker.SocialGraphCircuitBreaker) *TweetService {
 	return &TweetService{
 		tweetRepository,
 		tracer,
+		socialGraphCB,
 	}
 }
 
@@ -173,18 +176,8 @@ func (s *TweetService) GetHomeFeed(ctx context.Context, lastTweetId string) (*[]
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetHomeFeed")
 	defer span.End()
 
-	conn, err := getgRPCConnection("social-graph:9001")
-	defer conn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
-	}
-
 	targetUser := social_graph.SocialGraphUsername{}
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
-
-	socialGraphService := social_graph.NewSocialGraphServiceClient(conn)
-	serviceCtx = metadata.AppendToOutgoingContext(serviceCtx, "authUsername", authUser.Username)
 
 	tweets, err := s.tweetRepository.GetFeedTweets(serviceCtx, authUser.Username, lastTweetId)
 	if err != nil {
@@ -196,9 +189,13 @@ func (s *TweetService) GetHomeFeed(ctx context.Context, lastTweetId string) (*[]
 	for _, tweet := range tweets {
 		if tweet.Retweet {
 			targetUser.Username = tweet.OriginalPostedBy
-			response, err := socialGraphService.CheckVisibility(serviceCtx, &targetUser)
+			visible, err := s.socialGraphCB.CheckVisibility(serviceCtx, &targetUser)
 
-			if err != nil || !response.Visibility {
+			if err != nil && err.Code == 503 {
+				continue
+			}
+
+			if err != nil || !visible {
 				tweet.Text = ""
 			}
 		}

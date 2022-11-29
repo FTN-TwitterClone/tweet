@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"tweet/circuit_breaker"
 	"tweet/controller"
 	"tweet/controller/jwt"
 	"tweet/repository/cassandra"
@@ -49,7 +50,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tweetService := service.NewTweetService(tweetRepository, tracer)
+	socialGraphCircuitBreaker := circuit_breaker.NewSocialGraphCircuitBreaker(tracer)
+	tweetService := service.NewTweetService(tweetRepository, tracer, socialGraphCircuitBreaker)
 
 	tweetController := controller.NewTweetController(tweetService, tracer)
 
