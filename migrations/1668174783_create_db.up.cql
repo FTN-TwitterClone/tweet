@@ -11,12 +11,10 @@ CREATE TABLE timeline_by_user (
 CREATE INDEX timeline_tweet_id ON timeline_by_user (tweet_id);
 
 CREATE TABLE likes (
-    username text,
     tweet_id timeuuid,
-    PRIMARY KEY ((username, tweet_id))
+    username text,
+    PRIMARY KEY ((tweet_id), username)
 );
-
-CREATE INDEX likes_tweet_id ON likes (tweet_id);
 
 CREATE TABLE feed_by_user (
     tweet_id timeuuid,

@@ -6,6 +6,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/metadata"
 	"tweet/repository"
 )
 
@@ -26,7 +27,10 @@ func (s gRPCTweetService) UpdateFeed(ctx context.Context, user *tweet.User) (*em
 	serviceCtx, span := s.tracer.Start(ctx, "gRPCTweetService.UpdateFeed")
 	defer span.End()
 
-	err := s.tweetRepository.UpdateFeed(serviceCtx, user.Username)
+	md, _ := metadata.FromIncomingContext(ctx)
+	authUsername := md.Get("authUsername")[0]
+
+	err := s.tweetRepository.UpdateFeed(serviceCtx, authUsername, user.Username)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return new(empty.Empty), err
