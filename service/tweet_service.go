@@ -4,29 +4,25 @@ import (
 	"context"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/gocql/gocql"
-	"github.com/golang/protobuf/ptypes/empty"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
-	"log"
 	"tweet/app_errors"
+	"tweet/circuit_breaker"
 	"tweet/model"
 	"tweet/repository"
-	"tweet/tls"
 )
 
 type TweetService struct {
 	tweetRepository repository.TweetRepository
 	tracer          trace.Tracer
+	socialGraphCB   *circuit_breaker.SocialGraphCircuitBreaker
 }
 
-func NewTweetService(tweetRepository repository.TweetRepository, tracer trace.Tracer) *TweetService {
+func NewTweetService(tweetRepository repository.TweetRepository, tracer trace.Tracer, socialGraphCB *circuit_breaker.SocialGraphCircuitBreaker) *TweetService {
 	return &TweetService{
 		tweetRepository,
 		tracer,
+		socialGraphCB,
 	}
 }
 
@@ -44,23 +40,16 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 		TimeStamp: id.Time(),
 	}
 
-	conn, err := getgRPCConnection("social-graph:9001")
-	defer conn.Close()
+	followers, err := s.socialGraphCB.GetMyFollowers(serviceCtx)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
 	}
 
-	socialGraphService := social_graph.NewSocialGraphServiceClient(conn)
-	serviceCtx = metadata.AppendToOutgoingContext(serviceCtx, "authUsername", authUser.Username)
+	repoErr := s.tweetRepository.SaveTweet(serviceCtx, &t, followers)
 
-	response, _ := socialGraphService.GetMyFollowers(serviceCtx, new(empty.Empty))
-
-	err = s.tweetRepository.SaveTweet(serviceCtx, &t, response.Usernames)
-
-	if err != nil {
+	if repoErr != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 
 	return &t, nil
@@ -75,7 +64,7 @@ func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, 
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 
 	l := model.Like{
@@ -87,7 +76,7 @@ func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, 
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 
 	return &l, nil
@@ -102,7 +91,7 @@ func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_
 	err := s.tweetRepository.DeleteLike(serviceCtx, id, authUser.Username)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return "", &app_errors.AppError{500, ""}
+		return "", &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 
 	return id, nil
@@ -112,45 +101,37 @@ func (s *TweetService) GetTimelineTweets(ctx context.Context, username string, l
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetProfileTweets")
 	defer span.End()
 
-	conn, err := getgRPCConnection("social-graph:9001")
-	defer conn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
-	}
-
 	targetUser := social_graph.SocialGraphUsername{
 		Username: username,
 	}
 
-	authUser := serviceCtx.Value("authUser").(model.AuthUser)
-
-	socialGraphService := social_graph.NewSocialGraphServiceClient(conn)
-	serviceCtx = metadata.AppendToOutgoingContext(serviceCtx, "authUsername", authUser.Username)
-
-	response, err := socialGraphService.CheckVisibility(serviceCtx, &targetUser)
-	if err != nil {
+	visibility, err := s.socialGraphCB.CheckVisibility(serviceCtx, &targetUser)
+	if err != nil && err.Code == 503 {
 		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
+		return nil, &app_errors.AppError{Code: 503, Message: "Service unavailable"}
 	}
 
-	if !response.Visibility {
-		return nil, &app_errors.AppError{403, ""}
+	if !visibility {
+		return nil, &app_errors.AppError{Code: 403}
 	}
 
-	tweets, err := s.tweetRepository.GetTimelineTweets(serviceCtx, username, lastTweetId)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
+	tweets, repoErr := s.tweetRepository.GetTimelineTweets(serviceCtx, username, lastTweetId)
+	if repoErr != nil {
+		span.SetStatus(codes.Error, repoErr.Error())
+		return nil, &app_errors.AppError{Code: 500, Message: repoErr.Error()}
 	}
 
 	var responseTweets []model.TweetDTO
 	for _, tweet := range tweets {
 		if tweet.Retweet {
 			targetUser.Username = tweet.OriginalPostedBy
-			response, err = socialGraphService.CheckVisibility(serviceCtx, &targetUser)
+			visibility, err = s.socialGraphCB.CheckVisibility(serviceCtx, &targetUser)
 
-			if err != nil || !response.Visibility {
+			if err != nil && err.Code == 503 {
+				continue
+			}
+
+			if err != nil || !visibility {
 				tweet.Text = ""
 			}
 		}
@@ -173,32 +154,26 @@ func (s *TweetService) GetHomeFeed(ctx context.Context, lastTweetId string) (*[]
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetHomeFeed")
 	defer span.End()
 
-	conn, err := getgRPCConnection("social-graph:9001")
-	defer conn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
-	}
-
 	targetUser := social_graph.SocialGraphUsername{}
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
-
-	socialGraphService := social_graph.NewSocialGraphServiceClient(conn)
-	serviceCtx = metadata.AppendToOutgoingContext(serviceCtx, "authUsername", authUser.Username)
 
 	tweets, err := s.tweetRepository.GetFeedTweets(serviceCtx, authUser.Username, lastTweetId)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 
 	var responseTweets []model.TweetDTO
 	for _, tweet := range tweets {
 		if tweet.Retweet {
 			targetUser.Username = tweet.OriginalPostedBy
-			response, err := socialGraphService.CheckVisibility(serviceCtx, &targetUser)
+			visible, err := s.socialGraphCB.CheckVisibility(serviceCtx, &targetUser)
 
-			if err != nil || !response.Visibility {
+			if err != nil && err.Code == 503 {
+				continue
+			}
+
+			if err != nil || !visible {
 				tweet.Text = ""
 			}
 		}
@@ -215,40 +190,29 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 	tweet, err := s.tweetRepository.FindTweet(serviceCtx, tweetId)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, "Tweet not found"}
+		return nil, &app_errors.AppError{Code: 500, Message: "Tweet not found"}
 	}
 
 	if tweet.Retweet {
-		return nil, &app_errors.AppError{406, "You cant retweet a retweet"}
-	}
-
-	conn, err := getgRPCConnection("social-graph:9001")
-	defer conn.Close()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
+		return nil, &app_errors.AppError{Code: 406, Message: "You cant retweet a retweet"}
 	}
 
 	targetUser := social_graph.SocialGraphUsername{
 		Username: tweet.PostedBy,
 	}
 
+	visibility, sbErr := s.socialGraphCB.CheckVisibility(serviceCtx, &targetUser)
+
+	if sbErr != nil && sbErr.Code == 503 {
+		span.SetStatus(codes.Error, sbErr.Error())
+		return nil, &app_errors.AppError{Code: 503, Message: "Service unavailable"}
+	}
+
+	if !visibility {
+		return nil, &app_errors.AppError{Code: 403}
+	}
+
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
-
-	socialGraphService := social_graph.NewSocialGraphServiceClient(conn)
-	serviceCtx = metadata.AppendToOutgoingContext(serviceCtx, "authUsername", authUser.Username)
-
-	response, err := socialGraphService.CheckVisibility(serviceCtx, &targetUser)
-
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
-	}
-
-	if !response.Visibility {
-		return nil, &app_errors.AppError{403, ""}
-	}
-
 	id := gocql.TimeUUID()
 	t := model.Tweet{
 		ID:               id,
@@ -259,31 +223,19 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		OriginalPostedBy: tweet.PostedBy,
 	}
 
-	followers, _ := socialGraphService.GetMyFollowers(serviceCtx, new(empty.Empty))
+	followers, sbErr := s.socialGraphCB.GetMyFollowers(serviceCtx)
 
-	err = s.tweetRepository.SaveTweet(serviceCtx, &t, followers.Usernames)
+	if sbErr != nil && sbErr.Code == 503 {
+		span.SetStatus(codes.Error, sbErr.Error())
+		return nil, &app_errors.AppError{Code: 503, Message: "Service unavailable"}
+	}
+
+	err = s.tweetRepository.SaveTweet(serviceCtx, &t, followers)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{500, ""}
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 
 	return &t, nil
-}
-
-func getgRPCConnection(address string) (*grpc.ClientConn, error) {
-	creds := credentials.NewTLS(tls.GetgRPCClientTLSConfig())
-
-	conn, err := grpc.DialContext(
-		context.Background(),
-		address,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-	)
-
-	if err != nil {
-		log.Fatalf("Failed to start gRPC connection: %v", err)
-	}
-
-	return conn, err
 }

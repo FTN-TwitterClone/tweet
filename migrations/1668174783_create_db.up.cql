@@ -4,7 +4,7 @@ CREATE TABLE timeline_by_user (
     text text,
     retweet boolean,
     original_posted_by text,
-    PRIMARY KEY (posted_by, tweet_id)
+    PRIMARY KEY ((posted_by), tweet_id)
 )
     WITH CLUSTERING ORDER BY (tweet_id DESC);
 
@@ -17,12 +17,12 @@ CREATE TABLE likes (
 );
 
 CREATE TABLE feed_by_user (
+    username text,
     tweet_id timeuuid,
     posted_by text,
-    username text,
     text text,
     retweet boolean,
     original_posted_by text,
-    PRIMARY KEY (username, tweet_id)
+    PRIMARY KEY ((username), tweet_id)
 )
     WITH CLUSTERING ORDER BY (tweet_id DESC);

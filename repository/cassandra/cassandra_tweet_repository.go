@@ -93,7 +93,7 @@ func migrateDB() error {
 	return nil
 }
 
-func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.Tweet, usernames []*social_graph.SocialGraphUsername) error {
+func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.Tweet, followers []*social_graph.SocialGraphUsername) error {
 	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
 	defer span.End()
 
@@ -106,7 +106,7 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 		Bind(tweet.ID, tweet.PostedBy, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
 		Exec()
 
-	for _, follower := range usernames {
+	for _, follower := range followers {
 		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?)").
 			Bind(tweet.ID, follower.Username, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
 			Exec()
