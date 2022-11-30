@@ -7,9 +7,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"tweet/app_errors"
-	"tweet/circuit_breaker"
 	"tweet/model"
 	"tweet/repository"
+	"tweet/service/circuit_breaker"
 )
 
 type TweetService struct {

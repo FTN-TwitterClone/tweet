@@ -1,8 +1,12 @@
 package tls
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"log"
 	"os"
@@ -84,4 +88,21 @@ func GetgRPCClientTLSConfig() *tls.Config {
 		MinVersion:   tls.VersionTLS13,
 		MaxVersion:   tls.VersionTLS13,
 	}
+}
+
+func GetgRPCConnection(address string) (*grpc.ClientConn, error) {
+	creds := credentials.NewTLS(GetgRPCClientTLSConfig())
+
+	conn, err := grpc.DialContext(
+		context.Background(),
+		address,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+	)
+
+	if err != nil {
+		log.Fatalf("Failed to start gRPC connection: %v", err)
+	}
+
+	return conn, err
 }

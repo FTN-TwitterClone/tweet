@@ -5,11 +5,8 @@ import (
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/sony/gobreaker"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"log"
 	"time"
@@ -51,7 +48,7 @@ func (cb *SocialGraphCircuitBreaker) CheckVisibility(ctx context.Context, target
 	cbCtx, span := cb.tracer.Start(ctx, "SocialGraphCircuitBreaker.CheckVisibility")
 	defer span.End()
 
-	conn, err := getgRPCConnection("social-graph:9001")
+	conn, err := tls.GetgRPCConnection("social-graph:9001")
 	defer conn.Close()
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -84,7 +81,7 @@ func (cb *SocialGraphCircuitBreaker) GetMyFollowers(ctx context.Context) ([]*soc
 	cbCtx, span := cb.tracer.Start(ctx, "SocialGraphCircuitBreaker.GetMyFollowers")
 	defer span.End()
 
-	conn, err := getgRPCConnection("social-graph:9001")
+	conn, err := tls.GetgRPCConnection("social-graph:9001")
 	defer conn.Close()
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -111,21 +108,4 @@ func (cb *SocialGraphCircuitBreaker) GetMyFollowers(ctx context.Context) ([]*soc
 	}
 
 	return execute.([]*social_graph.SocialGraphUsername), nil
-}
-
-func getgRPCConnection(address string) (*grpc.ClientConn, error) {
-	creds := credentials.NewTLS(tls.GetgRPCClientTLSConfig())
-
-	conn, err := grpc.DialContext(
-		context.Background(),
-		address,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-	)
-
-	if err != nil {
-		log.Fatalf("Failed to start gRPC connection: %v", err)
-	}
-
-	return conn, err
 }

@@ -18,11 +18,11 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	"tweet/circuit_breaker"
 	"tweet/controller"
 	"tweet/controller/jwt"
 	"tweet/repository/cassandra"
 	"tweet/service"
+	"tweet/service/circuit_breaker"
 	"tweet/tls"
 	"tweet/tracing"
 )

@@ -101,10 +101,8 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 		Bind(tweet.ID, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
 		Exec()
 
-	//to see my tweets in the feed
-	err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?)").
-		Bind(tweet.ID, tweet.PostedBy, tweet.PostedBy, tweet.Text, tweet.Retweet, tweet.OriginalPostedBy).
-		Exec()
+	// I want to see my tweet in feed
+	followers = append(followers, &social_graph.SocialGraphUsername{Username: tweet.PostedBy})
 
 	for _, follower := range followers {
 		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?)").
