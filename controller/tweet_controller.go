@@ -135,3 +135,17 @@ func (c *TweetController) Retweet(w http.ResponseWriter, req *http.Request) {
 
 	json.EncodeJson(w, retweet)
 }
+
+func (c *TweetController) SaveImage(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.SaveImage")
+	defer span.End()
+
+	imageName, appErr := c.tweetService.SaveImage(ctx, req)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, imageName)
+}

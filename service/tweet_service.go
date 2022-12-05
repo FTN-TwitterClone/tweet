@@ -4,8 +4,12 @@ import (
 	"context"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"io"
+	"net/http"
+	"os"
 	"tweet/app_errors"
 	"tweet/model"
 	"tweet/repository"
@@ -238,4 +242,35 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 	}
 
 	return &t, nil
+}
+
+func (s *TweetService) SaveImage(ctx context.Context, req *http.Request) (*string, *app_errors.AppError) {
+	_, span := s.tracer.Start(ctx, "TweetService.SaveImage")
+	defer span.End()
+
+	// left shift 32 << 20 which results in 32*2^20 = 33554432
+	// x << y, results in x*2^y
+	err := req.ParseMultipartForm(32 << 20)
+	if err != nil {
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+	// Retrieve the file from form data
+	f, _, err := req.FormFile("image")
+	if err != nil {
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+	defer f.Close()
+	imageName := uuid.New().String()
+	fullPath := os.Getenv("IMAGES") + "/" + imageName
+	file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+	defer file.Close()
+	// Copy the file to the destination path
+	_, err = io.Copy(file, f)
+	if err != nil {
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+	return &imageName, nil
 }
