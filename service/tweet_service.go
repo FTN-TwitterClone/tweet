@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/gocql/gocql"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"io"
@@ -41,6 +40,7 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 		ID:        id,
 		PostedBy:  authUser.Username,
 		Text:      tweet.Text,
+		ImageId:   tweet.ImageId,
 		TimeStamp: id.Time(),
 	}
 
@@ -52,8 +52,8 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 	repoErr := s.tweetRepository.SaveTweet(serviceCtx, &t, followers)
 
 	if repoErr != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
+		span.SetStatus(codes.Error, repoErr.Error())
+		return nil, &app_errors.AppError{Code: 500, Message: repoErr.Error()}
 	}
 
 	return &t, nil
@@ -135,9 +135,14 @@ func (s *TweetService) GetTimelineTweets(ctx context.Context, username string, l
 				continue
 			}
 
-			if err != nil || !visibility {
+			if !visibility {
 				tweet.Text = ""
+			} else if len(tweet.ImageId) > 0 {
+				tweet.Image, _ = s.GetImage(serviceCtx, tweet.ImageId)
 			}
+
+		} else if len(tweet.ImageId) > 0 { // if photo is present
+			tweet.Image, _ = s.GetImage(serviceCtx, tweet.ImageId)
 		}
 		responseTweets = append(responseTweets, tweet)
 	}
@@ -177,9 +182,14 @@ func (s *TweetService) GetHomeFeed(ctx context.Context, lastTweetId string) (*[]
 				continue
 			}
 
-			if err != nil || !visible {
+			if !visible {
 				tweet.Text = ""
+			} else if len(tweet.ImageId) > 0 {
+				tweet.Image, _ = s.GetImage(serviceCtx, tweet.ImageId)
 			}
+
+		} else if len(tweet.ImageId) > 0 { // if photo is present
+			tweet.Image, _ = s.GetImage(serviceCtx, tweet.ImageId)
 		}
 		responseTweets = append(responseTweets, tweet)
 	}
@@ -222,6 +232,7 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		ID:               id,
 		PostedBy:         authUser.Username,
 		Text:             tweet.Text,
+		ImageId:          tweet.ImageId,
 		TimeStamp:        id.Time(),
 		Retweet:          true,
 		OriginalPostedBy: tweet.PostedBy,
@@ -260,7 +271,7 @@ func (s *TweetService) SaveImage(ctx context.Context, req *http.Request) (*strin
 		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 	defer f.Close()
-	imageName := uuid.New().String()
+	imageName := gocql.TimeUUID().String()
 	fullPath := os.Getenv("IMAGES") + "/" + imageName
 	file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE, os.ModePerm)
 	if err != nil {
@@ -273,4 +284,18 @@ func (s *TweetService) SaveImage(ctx context.Context, req *http.Request) (*strin
 		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 	return &imageName, nil
+}
+
+func (s *TweetService) GetImage(ctx context.Context, imageId string) ([]byte, error) {
+	_, span := s.tracer.Start(ctx, "TweetService.GetImage")
+	defer span.End()
+
+	fullPath := os.Getenv("IMAGES") + "/" + imageId
+	image, err := os.ReadFile(fullPath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return image, err
 }

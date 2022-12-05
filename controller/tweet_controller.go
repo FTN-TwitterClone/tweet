@@ -34,6 +34,11 @@ func (c *TweetController) CreateTweet(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	if len(tweet.Text) == 0 && len(tweet.ImageId) == 0 {
+		http.Error(w, "Text and image can't be blank", 500)
+		return
+	}
+
 	newTweet, appErr := c.tweetService.CreateTweet(ctx, tweet)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
