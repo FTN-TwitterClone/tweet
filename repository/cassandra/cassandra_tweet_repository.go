@@ -93,7 +93,7 @@ func migrateDB() error {
 	return nil
 }
 
-func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.Tweet, followers []*social_graph.SocialGraphUsername) error {
+func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.TweetDTO, followers []*social_graph.SocialGraphUsername) error {
 	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
 	defer span.End()
 
@@ -257,7 +257,7 @@ func (r *CassandraTweetRepository) FindTweet(ctx context.Context, tweetId string
 	var tweet model.Tweet
 	err := r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id) FROM timeline_by_user WHERE tweet_id = ?").
 		Bind(tweetId).Consistency(gocql.One).
-		Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.TimeStamp)
+		Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp)
 
 	return tweet, err
 }

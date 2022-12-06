@@ -31,19 +31,26 @@ func NewTweetService(cassandraRepository repository.CassandraRepository, redisRe
 	}
 }
 
-func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*model.Tweet, *app_errors.AppError) {
+func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*model.TweetDTO, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateTweet")
 	defer span.End()
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
 	id := gocql.TimeUUID()
 
-	t := model.Tweet{
-		ID:        id,
-		PostedBy:  authUser.Username,
-		Text:      tweet.Text,
-		ImageId:   tweet.ImageId,
-		TimeStamp: id.Time(),
+	t := model.TweetDTO{
+		ID:               id,
+		PostedBy:         authUser.Username,
+		Text:             tweet.Text,
+		ImageId:          tweet.ImageId,
+		Timestamp:        id.Time(),
+		LikesCount:       0,
+		LikedByMe:        false,
+		Retweet:          false,
+		OriginalPostedBy: "",
+	}
+	if len(tweet.ImageId) > 0 {
+		t.Image, _ = s.GetImage(serviceCtx, tweet.ImageId)
 	}
 
 	followers, err := s.socialGraphCB.GetMyFollowers(serviceCtx)
@@ -199,7 +206,7 @@ func (s *TweetService) GetHomeFeed(ctx context.Context, lastTweetId string) (*[]
 	return &responseTweets, nil
 }
 
-func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Tweet, *app_errors.AppError) {
+func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.TweetDTO, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.Retweet")
 	defer span.End()
 
@@ -230,14 +237,20 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
 	id := gocql.TimeUUID()
-	t := model.Tweet{
+	t := model.TweetDTO{
 		ID:               id,
 		PostedBy:         authUser.Username,
 		Text:             tweet.Text,
 		ImageId:          tweet.ImageId,
-		TimeStamp:        id.Time(),
+		Timestamp:        id.Time(),
 		Retweet:          true,
 		OriginalPostedBy: tweet.PostedBy,
+		LikedByMe:        false,
+		LikesCount:       0,
+	}
+
+	if len(tweet.ImageId) > 0 {
+		t.Image, _ = s.GetImage(serviceCtx, tweet.ImageId)
 	}
 
 	followers, sbErr := s.socialGraphCB.GetMyFollowers(serviceCtx)

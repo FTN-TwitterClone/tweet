@@ -17,7 +17,7 @@ type Tweet struct {
 	PostedBy         string     `json:"postedBy"`
 	Text             string     `json:"text"`
 	ImageId          string     `json:"imageId"`
-	TimeStamp        time.Time  `json:"timestamp"`
+	Timestamp        time.Time  `json:"timestamp"`
 	Retweet          bool       `json:"retweet"`
 	OriginalPostedBy string     `json:"originalPostedBy"`
 }
@@ -26,8 +26,8 @@ type TweetDTO struct {
 	ID               gocql.UUID `json:"id"`
 	PostedBy         string     `json:"postedBy"`
 	Text             string     `json:"text"`
-	Image            []byte     `json:"image"`
 	ImageId          string     `json:"-"` //only for backend
+	Image            []byte     `json:"image"`
 	Timestamp        time.Time  `json:"timestamp"`
 	Retweet          bool       `json:"retweet"`
 	OriginalPostedBy string     `json:"originalPostedBy"`
