@@ -48,6 +48,7 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 		LikedByMe:        false,
 		Retweet:          false,
 		OriginalPostedBy: "",
+		Ad:               false,
 	}
 	if len(tweet.ImageId) > 0 {
 		t.Image, _ = s.GetImage(serviceCtx, tweet.ImageId)
@@ -59,6 +60,50 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 	}
 
 	repoErr := s.cassandraRepository.SaveTweet(serviceCtx, &t, followers)
+
+	if repoErr != nil {
+		span.SetStatus(codes.Error, repoErr.Error())
+		return nil, &app_errors.AppError{Code: 500, Message: repoErr.Error()}
+	}
+
+	return &t, nil
+}
+
+func (s *TweetService) CreateAd(ctx context.Context, ad model.Ad, authUser model.AuthUser) (*model.TweetDTO, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateAd")
+	defer span.End()
+
+	id := gocql.TimeUUID()
+
+	t := model.TweetDTO{
+		ID:               id,
+		PostedBy:         authUser.Username,
+		Text:             ad.Text,
+		ImageId:          ad.ImageId,
+		Timestamp:        id.Time(),
+		LikesCount:       0,
+		LikedByMe:        false,
+		Retweet:          false,
+		OriginalPostedBy: "",
+		Ad:               true,
+	}
+	if len(ad.ImageId) > 0 {
+		t.Image, _ = s.GetImage(serviceCtx, ad.ImageId)
+	}
+
+	followers, err := s.socialGraphCB.GetMyFollowers(serviceCtx)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	targetGroupUsers, err := s.socialGraphCB.GetTargetGroupUsers(serviceCtx)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	targetGroupUsers = append(targetGroupUsers, followers...)
+
+	repoErr := s.cassandraRepository.SaveTweet(serviceCtx, &t, targetGroupUsers)
 
 	if repoErr != nil {
 		span.SetStatus(codes.Error, repoErr.Error())
@@ -216,8 +261,8 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		return nil, &app_errors.AppError{Code: 500, Message: "Tweet not found"}
 	}
 
-	if tweet.Retweet {
-		return nil, &app_errors.AppError{Code: 406, Message: "You cant retweet a retweet"}
+	if tweet.Retweet || tweet.Ad {
+		return nil, &app_errors.AppError{Code: 406, Message: "You cant retweet a retweet or ad"}
 	}
 
 	targetUser := social_graph.SocialGraphUsername{
@@ -247,6 +292,7 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		OriginalPostedBy: tweet.PostedBy,
 		LikedByMe:        false,
 		LikesCount:       0,
+		Ad:               false,
 	}
 
 	if len(tweet.ImageId) > 0 {

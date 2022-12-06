@@ -66,6 +66,7 @@ func main() {
 	)
 
 	router.HandleFunc("/tweets/", tweetController.CreateTweet).Methods("POST")
+	router.HandleFunc("/tweets/ads", tweetController.CreateTweet).Methods("POST")
 	router.HandleFunc("/tweets/{id}/like", tweetController.CreateLike).Methods("PUT")
 	router.HandleFunc("/tweets/{id}/unlike", tweetController.DeleteLike).Methods("PUT")
 	router.HandleFunc("/tweets/profile/{username}", tweetController.GetTimelineTweets).Methods("GET")

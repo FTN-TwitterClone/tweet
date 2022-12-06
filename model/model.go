@@ -20,6 +20,7 @@ type Tweet struct {
 	Timestamp        time.Time  `json:"timestamp"`
 	Retweet          bool       `json:"retweet"`
 	OriginalPostedBy string     `json:"originalPostedBy"`
+	Ad               bool       `json:"ad"`
 }
 
 type TweetDTO struct {
@@ -33,9 +34,19 @@ type TweetDTO struct {
 	OriginalPostedBy string     `json:"originalPostedBy"`
 	LikesCount       int16      `json:"likesCount"`
 	LikedByMe        bool       `json:"likedByMe"`
+	Ad               bool       `json:"ad"`
 }
 
 type Like struct {
 	Username string     `json:"username"`
 	TweetId  gocql.UUID `json:"tweetId"`
+}
+
+// Ad proof of concept structs
+type Ad struct {
+	ID        gocql.UUID `json:"id"`
+	PostedBy  string     `json:"postedBy"`
+	Text      string     `json:"text"`
+	ImageId   string     `json:"imageId"`
+	Timestamp time.Time  `json:"timestamp"`
 }
