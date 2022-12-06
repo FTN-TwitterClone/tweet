@@ -16,14 +16,16 @@ import (
 )
 
 type TweetService struct {
-	tweetRepository repository.TweetRepository
-	tracer          trace.Tracer
-	socialGraphCB   *circuit_breaker.SocialGraphCircuitBreaker
+	cassandraRepository repository.CassandraRepository
+	cache               repository.RedisRepository
+	tracer              trace.Tracer
+	socialGraphCB       *circuit_breaker.SocialGraphCircuitBreaker
 }
 
-func NewTweetService(tweetRepository repository.TweetRepository, tracer trace.Tracer, socialGraphCB *circuit_breaker.SocialGraphCircuitBreaker) *TweetService {
+func NewTweetService(cassandraRepository repository.CassandraRepository, redisRepository repository.RedisRepository, tracer trace.Tracer, socialGraphCB *circuit_breaker.SocialGraphCircuitBreaker) *TweetService {
 	return &TweetService{
-		tweetRepository,
+		cassandraRepository,
+		redisRepository,
 		tracer,
 		socialGraphCB,
 	}
@@ -49,7 +51,7 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 		span.SetStatus(codes.Error, err.Error())
 	}
 
-	repoErr := s.tweetRepository.SaveTweet(serviceCtx, &t, followers)
+	repoErr := s.cassandraRepository.SaveTweet(serviceCtx, &t, followers)
 
 	if repoErr != nil {
 		span.SetStatus(codes.Error, repoErr.Error())
@@ -76,7 +78,7 @@ func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, 
 		TweetId:  tweetId,
 	}
 
-	err = s.tweetRepository.SaveLike(serviceCtx, &l)
+	err = s.cassandraRepository.SaveLike(serviceCtx, &l)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -92,7 +94,7 @@ func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
 
-	err := s.tweetRepository.DeleteLike(serviceCtx, id, authUser.Username)
+	err := s.cassandraRepository.DeleteLike(serviceCtx, id, authUser.Username)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return "", &app_errors.AppError{Code: 500, Message: err.Error()}
@@ -119,7 +121,7 @@ func (s *TweetService) GetTimelineTweets(ctx context.Context, username string, l
 		return nil, &app_errors.AppError{Code: 403}
 	}
 
-	tweets, repoErr := s.tweetRepository.GetTimelineTweets(serviceCtx, username, lastTweetId)
+	tweets, repoErr := s.cassandraRepository.GetTimelineTweets(serviceCtx, username, lastTweetId)
 	if repoErr != nil {
 		span.SetStatus(codes.Error, repoErr.Error())
 		return nil, &app_errors.AppError{Code: 500, Message: repoErr.Error()}
@@ -154,7 +156,7 @@ func (s *TweetService) GetLikesByTweet(ctx context.Context, tweetId string) *[]m
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetLikesByTweet")
 	defer span.End()
 
-	likes := s.tweetRepository.GetLikesByTweet(serviceCtx, tweetId)
+	likes := s.cassandraRepository.GetLikesByTweet(serviceCtx, tweetId)
 
 	return likes
 }
@@ -166,7 +168,7 @@ func (s *TweetService) GetHomeFeed(ctx context.Context, lastTweetId string) (*[]
 	targetUser := social_graph.SocialGraphUsername{}
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
 
-	tweets, err := s.tweetRepository.GetFeedTweets(serviceCtx, authUser.Username, lastTweetId)
+	tweets, err := s.cassandraRepository.GetFeedTweets(serviceCtx, authUser.Username, lastTweetId)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
@@ -201,7 +203,7 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.Retweet")
 	defer span.End()
 
-	tweet, err := s.tweetRepository.FindTweet(serviceCtx, tweetId)
+	tweet, err := s.cassandraRepository.FindTweet(serviceCtx, tweetId)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, &app_errors.AppError{Code: 500, Message: "Tweet not found"}
@@ -245,7 +247,7 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		return nil, &app_errors.AppError{Code: 503, Message: "Service unavailable"}
 	}
 
-	err = s.tweetRepository.SaveTweet(serviceCtx, &t, followers)
+	err = s.cassandraRepository.SaveTweet(serviceCtx, &t, followers)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -287,15 +289,25 @@ func (s *TweetService) SaveImage(ctx context.Context, req *http.Request) (*strin
 }
 
 func (s *TweetService) GetImage(ctx context.Context, imageId string) ([]byte, error) {
-	_, span := s.tracer.Start(ctx, "TweetService.GetImage")
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetImage")
 	defer span.End()
 
-	fullPath := os.Getenv("IMAGES") + "/" + imageId
-	image, err := os.ReadFile(fullPath)
-
+	image, err := s.cache.Get(serviceCtx, imageId)
 	if err != nil {
-		return nil, err
-	}
+		//time.Sleep(10 * time.Second) // proof of concept
 
-	return image, err
+		fullPath := os.Getenv("IMAGES") + "/" + imageId
+		image, err = os.ReadFile(fullPath)
+
+		if err != nil {
+			span.SetStatus(500, err.Error())
+			return nil, err
+		}
+
+		err = s.cache.Post(serviceCtx, imageId, image)
+		if err != nil {
+			span.SetStatus(500, err.Error())
+		}
+	}
+	return image, nil
 }

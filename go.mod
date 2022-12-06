@@ -4,11 +4,11 @@ go 1.18
 
 require (
 	github.com/FTN-TwitterClone/grpc-stubs v1.0.9
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gocql/gocql v1.2.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/golang/protobuf v1.5.2
-	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/sony/gobreaker v0.5.0

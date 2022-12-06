@@ -7,7 +7,7 @@ import (
 	"tweet/model"
 )
 
-type TweetRepository interface {
+type CassandraRepository interface {
 	SaveTweet(ctx context.Context, tweet *model.Tweet, usernames []*social_graph.SocialGraphUsername) error
 	SaveLike(ctx context.Context, like *model.Like) error
 	DeleteLike(ctx context.Context, id string, username string) error
