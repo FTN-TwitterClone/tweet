@@ -12,45 +12,42 @@ CREATE KEYSPACE tweet_database WITH REPLICATION = {'class' : 'SimpleStrategy', '
 ```
 USE tweet_database ;
 ```
-*Create table for tweets:*
-```
-CREATE TABLE tweets (
-    id uuid,
-    username text,
-    text text,
-    timestamp timestamp,
-    PRIMARY KEY (id)
-);
-```
 *Create table for user profile:*
 ```
-CREATE TABLE user_profile (
-    username text,
-    timestamp timestamp,
-    tweet_id uuid,
-    PRIMARY KEY (username, timestamp)) 
-    WITH CLUSTERING ORDER BY (timestamp DESC);
+CREATE TABLE timeline_by_user (
+    posted_by text,
+    tweet_id timeuuid,
+    text text,
+    image_id text,
+    retweet boolean,
+    original_posted_by text,
+    PRIMARY KEY ((posted_by), tweet_id)
+)
+    WITH CLUSTERING ORDER BY (tweet_id DESC);
+    
+CREATE INDEX timeline_tweet_id ON timeline_by_user (tweet_id);
 ```
 *Create table for user feed:*
 ```
-CREATE TABLE user_feed (
+CREATE TABLE feed_by_user (
     username text,
-    timestamp timestamp,
-    tweet_id uuid,
-    PRIMARY KEY (username, timestamp)) 
-    WITH CLUSTERING ORDER BY (timestamp DESC);
+    tweet_id timeuuid,
+    posted_by text,
+    text text,
+    image_id text,
+    retweet boolean,
+    original_posted_by text,
+    PRIMARY KEY ((username), tweet_id)
+)
+    WITH CLUSTERING ORDER BY (tweet_id DESC);
 ```
 *Create table for likes:*
 ```
 CREATE TABLE likes (
+    tweet_id timeuuid,
     username text,
-    tweet_id uuid,
-    PRIMARY KEY ((username, tweet_id))
+    PRIMARY KEY ((tweet_id), username)
 );
-```
-*Create second index on tweet_id in likes table:*
-```
-CREATE INDEX tweet_id ON likes(tweet_id);
 ```
 *Get all from table:*
 ```

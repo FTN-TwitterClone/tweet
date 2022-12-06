@@ -34,6 +34,11 @@ func (c *TweetController) CreateTweet(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	if len(tweet.Text) == 0 && len(tweet.ImageId) == 0 {
+		http.Error(w, "Text and image can't be blank", 500)
+		return
+	}
+
 	newTweet, appErr := c.tweetService.CreateTweet(ctx, tweet)
 	if appErr != nil {
 		span.SetStatus(codes.Error, appErr.Error())
@@ -134,4 +139,18 @@ func (c *TweetController) Retweet(w http.ResponseWriter, req *http.Request) {
 	}
 
 	json.EncodeJson(w, retweet)
+}
+
+func (c *TweetController) SaveImage(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.SaveImage")
+	defer span.End()
+
+	imageName, appErr := c.tweetService.SaveImage(ctx, req)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, imageName)
 }

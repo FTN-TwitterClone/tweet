@@ -21,6 +21,7 @@ import (
 	"tweet/controller"
 	"tweet/controller/jwt"
 	"tweet/repository/cassandra"
+	"tweet/repository/redis"
 	"tweet/service"
 	"tweet/service/circuit_breaker"
 	"tweet/tls"
@@ -45,13 +46,15 @@ func main() {
 	tracer := tp.Tracer("tweet")
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	tweetRepository, err := cassandra.NewCassandraTweetRepository(tracer)
+	cassandraRepository, err := cassandra.NewCassandraTweetRepository(tracer)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	redisRepository := redis.NewRedisTweetRepository(tracer)
+
 	socialGraphCircuitBreaker := circuit_breaker.NewSocialGraphCircuitBreaker(tracer)
-	tweetService := service.NewTweetService(tweetRepository, tracer, socialGraphCircuitBreaker)
+	tweetService := service.NewTweetService(cassandraRepository, redisRepository, tracer, socialGraphCircuitBreaker)
 
 	tweetController := controller.NewTweetController(tweetService, tracer)
 
@@ -69,9 +72,10 @@ func main() {
 	router.HandleFunc("/tweets/{id}/likes", tweetController.GetLikesByTweet).Methods("GET")
 	router.HandleFunc("/tweets/feed", tweetController.GetHomeFeed).Methods("GET")
 	router.HandleFunc("/tweets/{id}/retweet", tweetController.Retweet).Methods("POST")
+	router.HandleFunc("/tweets/image", tweetController.SaveImage).Methods("POST")
 
 	allowedHeaders := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
-	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "OPTIONS"})
+	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "PATCH", "HEAD", "OPTIONS"})
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"})
 
 	// start server
@@ -106,7 +110,7 @@ func main() {
 		grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
 	)
 
-	tweet.RegisterTweetServiceServer(grpcServer, service.NewgRPCTweetService(tracer, tweetRepository))
+	tweet.RegisterTweetServiceServer(grpcServer, service.NewgRPCTweetService(tracer, cassandraRepository))
 	reflection.Register(grpcServer)
 	err = grpcServer.Serve(lis)
 	if err != nil {

@@ -12,14 +12,14 @@ import (
 
 type gRPCTweetService struct {
 	tweet.UnimplementedTweetServiceServer
-	tracer          trace.Tracer
-	tweetRepository repository.TweetRepository
+	tracer              trace.Tracer
+	cassandraRepository repository.CassandraRepository
 }
 
-func NewgRPCTweetService(tracer trace.Tracer, tweetRepository repository.TweetRepository) *gRPCTweetService {
+func NewgRPCTweetService(tracer trace.Tracer, cassandraRepository repository.CassandraRepository) *gRPCTweetService {
 	return &gRPCTweetService{
-		tracer:          tracer,
-		tweetRepository: tweetRepository,
+		tracer:              tracer,
+		cassandraRepository: cassandraRepository,
 	}
 }
 
@@ -30,7 +30,7 @@ func (s gRPCTweetService) UpdateFeed(ctx context.Context, user *tweet.User) (*em
 	md, _ := metadata.FromIncomingContext(ctx)
 	authUsername := md.Get("authUsername")[0]
 
-	err := s.tweetRepository.UpdateFeed(serviceCtx, authUsername, user.Username)
+	err := s.cassandraRepository.UpdateFeed(serviceCtx, authUsername, user.Username)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return new(empty.Empty), err
