@@ -96,12 +96,12 @@ func (s *TweetService) CreateAd(ctx context.Context, ad model.Ad, authUser model
 		span.SetStatus(codes.Error, err.Error())
 	}
 
-	targetGroupUsers, err := s.socialGraphCB.GetTargetGroupUsers(serviceCtx)
+	targetGroupUsers, err := s.socialGraphCB.GetTargetGroupUsers(serviceCtx, ad.TargetGroup)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 	}
 
-	targetGroupUsers = append(targetGroupUsers, followers...)
+	targetGroupUsers = append(targetGroupUsers, followers...) //TODO check if username already exists in slice
 
 	repoErr := s.cassandraRepository.SaveTweet(serviceCtx, &t, targetGroupUsers)
 

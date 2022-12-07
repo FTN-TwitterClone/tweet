@@ -51,6 +51,6 @@ type Ad struct {
 type TargetGroup struct {
 	Town   string `json:"town"`
 	Gender string `json:"gender"`
-	MinAge int    `json:"minAge"`
-	MaxAge int    `json:"maxAge"`
+	MinAge int32  `json:"minAge"`
+	MaxAge int32  `json:"maxAge"`
 }
