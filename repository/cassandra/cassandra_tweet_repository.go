@@ -97,16 +97,16 @@ func (r *CassandraTweetRepository) SaveTweet(ctx context.Context, tweet *model.T
 	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveTweet")
 	defer span.End()
 
-	err := r.session.Query("INSERT INTO timeline_by_user (tweet_id, posted_by, text, image_id, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?)").
-		Bind(tweet.ID, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy).
+	err := r.session.Query("INSERT INTO timeline_by_user (tweet_id, posted_by, text, image_id, retweet, original_posted_by, ad) VALUES (?, ?, ?, ?, ?, ?, ?)").
+		Bind(tweet.ID, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy, tweet.Ad).
 		Exec()
 
 	// I want to see my tweet in feed
 	followers = append(followers, &social_graph.SocialGraphUsername{Username: tweet.PostedBy})
 
 	for _, follower := range followers {
-		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, image_id, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?, ?)").
-			Bind(tweet.ID, follower.Username, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy).
+		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, image_id, retweet, original_posted_by, ad) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").
+			Bind(tweet.ID, follower.Username, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy, tweet.Ad).
 			Exec()
 	}
 
@@ -124,12 +124,12 @@ func (r *CassandraTweetRepository) SaveLike(ctx context.Context, like *model.Lik
 	return err
 }
 
-func (r *CassandraTweetRepository) DeleteLike(ctx context.Context, id string, username string) error {
-	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveLike")
+func (r *CassandraTweetRepository) DeleteLike(ctx context.Context, tweetId *gocql.UUID, username string) error {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.DeleteLike")
 	defer span.End()
 
 	err := r.session.Query("DELETE FROM likes WHERE username = ? AND tweet_id = ?").
-		Bind(username, id).
+		Bind(username, tweetId).
 		Exec()
 
 	return err
@@ -170,14 +170,14 @@ func (r *CassandraTweetRepository) GetTimelineTweets(ctx context.Context, userna
 	var iter *gocql.Iter
 
 	if len(lastTweetId) > 0 {
-		iter = r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id) FROM timeline_by_user WHERE posted_by = ? AND tweet_id < ? LIMIT 20").
+		iter = r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id), ad FROM timeline_by_user WHERE posted_by = ? AND tweet_id < ? LIMIT 20").
 			Bind(username, lastTweetId).Iter()
 	} else {
-		iter = r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id) FROM timeline_by_user WHERE posted_by = ? LIMIT 20").
+		iter = r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id), ad FROM timeline_by_user WHERE posted_by = ? LIMIT 20").
 			Bind(username).Iter()
 	}
 
-	for iter.Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp) {
+	for iter.Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp, &tweet.Ad) {
 
 		tweet.LikesCount, err = r.CountLikes(repoCtx, &tweet.ID)
 		if err != nil {
@@ -225,14 +225,14 @@ func (r *CassandraTweetRepository) GetFeedTweets(ctx context.Context, username s
 	var iter *gocql.Iter
 
 	if len(lastTweetId) > 0 {
-		iter = r.session.Query("SELECT tweet_id, posted_by, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id) FROM feed_by_user WHERE username = ? AND tweet_id < ? LIMIT 20").
+		iter = r.session.Query("SELECT tweet_id, posted_by, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id), ad FROM feed_by_user WHERE username = ? AND tweet_id < ? LIMIT 20").
 			Bind(username, lastTweetId).Iter()
 	} else {
-		iter = r.session.Query("SELECT tweet_id, posted_by, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id) FROM feed_by_user WHERE username = ? LIMIT 20").
+		iter = r.session.Query("SELECT tweet_id, posted_by, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id), ad FROM feed_by_user WHERE username = ? LIMIT 20").
 			Bind(username).Iter()
 	}
 
-	for iter.Scan(&tweet.ID, &tweet.PostedBy, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp) {
+	for iter.Scan(&tweet.ID, &tweet.PostedBy, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp, &tweet.Ad) {
 
 		tweet.LikesCount, err = r.CountLikes(repoCtx, &tweet.ID)
 		if err != nil {
@@ -255,9 +255,9 @@ func (r *CassandraTweetRepository) FindTweet(ctx context.Context, tweetId string
 	defer span.End()
 
 	var tweet model.Tweet
-	err := r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id) FROM timeline_by_user WHERE tweet_id = ?").
+	err := r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, ad FROM timeline_by_user WHERE tweet_id = ?").
 		Bind(tweetId).Consistency(gocql.One).
-		Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp)
+		Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Ad)
 
 	return tweet, err
 }
@@ -269,10 +269,10 @@ func (r *CassandraTweetRepository) FindUserTweets(ctx context.Context, username 
 	var tweets []model.Tweet
 	var tweet model.Tweet
 
-	iter := r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by FROM timeline_by_user WHERE posted_by = ?").
+	iter := r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, ad FROM timeline_by_user WHERE posted_by = ?").
 		Bind(username).Iter()
 
-	for iter.Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy) {
+	for iter.Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Ad) {
 		tweets = append(tweets, tweet)
 	}
 
@@ -287,10 +287,21 @@ func (r *CassandraTweetRepository) UpdateFeed(ctx context.Context, from string, 
 
 	var err error
 	for _, tweet := range tweets {
-		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, image_id, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?, ?)").
-			Bind(tweet.ID, from, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy).
+		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, image_id, retweet, original_posted_by, ad) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").
+			Bind(tweet.ID, from, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy, tweet.Ad).
 			Exec()
 	}
 
 	return err
+}
+
+func (r *CassandraTweetRepository) IsAd(ctx context.Context, tweetId *gocql.UUID) (bool, error) {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.IsAd")
+	defer span.End()
+
+	var isAd bool
+	err := r.session.Query("SELECT ad FROM timeline_by_user WHERE tweet_id = ?").
+		Bind(tweetId).Consistency(gocql.One).Scan(&isAd)
+
+	return isAd, err
 }

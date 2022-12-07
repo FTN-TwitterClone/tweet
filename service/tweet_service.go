@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/FTN-TwitterClone/grpc-stubs/proto/ads"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/gocql/gocql"
 	"go.opentelemetry.io/otel/codes"
@@ -13,6 +14,7 @@ import (
 	"tweet/model"
 	"tweet/repository"
 	"tweet/service/circuit_breaker"
+	"tweet/tls"
 )
 
 type TweetService struct {
@@ -48,6 +50,7 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 		LikedByMe:        false,
 		Retweet:          false,
 		OriginalPostedBy: "",
+		Ad:               false,
 	}
 	if len(tweet.ImageId) > 0 {
 		t.Image, _ = s.GetImage(serviceCtx, tweet.ImageId)
@@ -68,13 +71,79 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 	return &t, nil
 }
 
+func (s *TweetService) CreateAd(ctx context.Context, ad model.Ad, authUser model.AuthUser) (*model.TweetDTO, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateAd")
+	defer span.End()
+
+	id := gocql.TimeUUID()
+	t := model.TweetDTO{
+		ID:               id,
+		PostedBy:         authUser.Username,
+		Text:             ad.Tweet.Text,
+		ImageId:          ad.Tweet.ImageId,
+		Timestamp:        id.Time(),
+		LikesCount:       0,
+		LikedByMe:        false,
+		Retweet:          false,
+		OriginalPostedBy: "",
+		Ad:               true,
+	}
+	if len(ad.Tweet.ImageId) > 0 {
+		t.Image, _ = s.GetImage(serviceCtx, ad.Tweet.ImageId)
+	}
+
+	followers, err := s.socialGraphCB.GetMyFollowers(serviceCtx)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	targetGroupUsers, err := s.socialGraphCB.GetTargetGroupUsers(serviceCtx, ad.TargetGroup)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	targetGroupUsers = append(targetGroupUsers, followers...)
+
+	repoErr := s.cassandraRepository.SaveTweet(serviceCtx, &t, targetGroupUsers)
+
+	if repoErr != nil {
+		span.SetStatus(codes.Error, repoErr.Error())
+		return nil, &app_errors.AppError{Code: 500, Message: repoErr.Error()}
+	}
+
+	conn, gRPCErr := tls.GetgRPCConnection("ads:9001")
+	defer conn.Close()
+	if gRPCErr != nil {
+		span.SetStatus(codes.Error, gRPCErr.Error())
+		return nil, &app_errors.AppError{Code: 500, Message: gRPCErr.Error()}
+	}
+
+	adsService := ads.NewAdsServiceClient(conn)
+
+	adInfo := ads.AdInfo{
+		TweetId:  id.String(),
+		PostedBy: authUser.Username,
+		Town:     ad.TargetGroup.Town,
+		MinAge:   ad.TargetGroup.MinAge,
+		MaxAge:   ad.TargetGroup.MaxAge,
+		Gender:   ad.TargetGroup.Gender,
+	}
+
+	_, responseErr := adsService.SaveAdInfo(serviceCtx, &adInfo)
+	if responseErr != nil {
+		span.SetStatus(codes.Error, responseErr.Error())
+	}
+
+	return &t, nil
+}
+
 func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateLike")
 	defer span.End()
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
-	tweetId, err := gocql.ParseUUID(id)
 
+	tweetId, err := gocql.ParseUUID(id)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
@@ -92,6 +161,28 @@ func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, 
 		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
 	}
 
+	if isAd, rErr := s.cassandraRepository.IsAd(serviceCtx, &tweetId); rErr == nil && isAd {
+		conn, gRPCErr := tls.GetgRPCConnection("ads:9001")
+		defer conn.Close()
+		if gRPCErr != nil {
+			span.SetStatus(codes.Error, gRPCErr.Error())
+			return nil, &app_errors.AppError{Code: 500, Message: gRPCErr.Error()}
+		}
+
+		adsService := ads.NewAdsServiceClient(conn)
+
+		likeEvent := ads.LikeEvent{
+			Username: authUser.Username,
+			TweetId:  id,
+		}
+
+		_, responseErr := adsService.SaveLikeEvent(serviceCtx, &likeEvent)
+
+		if responseErr != nil {
+			span.SetStatus(codes.Error, responseErr.Error())
+		}
+	}
+
 	return &l, nil
 }
 
@@ -101,10 +192,38 @@ func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
 
-	err := s.cassandraRepository.DeleteLike(serviceCtx, id, authUser.Username)
+	tweetId, err := gocql.ParseUUID(id)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return "", &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+
+	err = s.cassandraRepository.DeleteLike(serviceCtx, &tweetId, authUser.Username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+
+	if isAd, rErr := s.cassandraRepository.IsAd(serviceCtx, &tweetId); rErr == nil && isAd {
+		conn, gRPCErr := tls.GetgRPCConnection("ads:9001")
+		defer conn.Close()
+		if gRPCErr != nil {
+			span.SetStatus(codes.Error, gRPCErr.Error())
+			return "", &app_errors.AppError{Code: 500, Message: gRPCErr.Error()}
+		}
+
+		adsService := ads.NewAdsServiceClient(conn)
+
+		unlikeEvent := ads.UnlikeEvent{
+			Username: authUser.Username,
+			TweetId:  id,
+		}
+
+		_, responseErr := adsService.SaveUnlikeEvent(serviceCtx, &unlikeEvent)
+
+		if responseErr != nil {
+			span.SetStatus(codes.Error, responseErr.Error())
+		}
 	}
 
 	return id, nil
@@ -247,6 +366,7 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		OriginalPostedBy: tweet.PostedBy,
 		LikedByMe:        false,
 		LikesCount:       0,
+		Ad:               tweet.Ad,
 	}
 
 	if len(tweet.ImageId) > 0 {

@@ -49,6 +49,38 @@ func (c *TweetController) CreateTweet(w http.ResponseWriter, req *http.Request) 
 	json.EncodeJson(w, newTweet)
 }
 
+func (c *TweetController) CreateAd(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.CreateAd")
+	defer span.End()
+
+	authUser := ctx.Value("authUser").(model.AuthUser)
+	if authUser.Role != "ROLE_BUSINESS" {
+		http.Error(w, "You are not a business user", 403)
+		return
+	}
+
+	ad, err := json.DecodeJson[model.Ad](req.Body)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	if len(ad.Tweet.Text) == 0 && len(ad.Tweet.ImageId) == 0 {
+		http.Error(w, "Text and image can't be blank", 500)
+		return
+	}
+
+	newAd, appErr := c.tweetService.CreateAd(ctx, ad, authUser)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, newAd)
+}
+
 func (c *TweetController) CreateLike(w http.ResponseWriter, req *http.Request) {
 	ctx, span := c.tracer.Start(req.Context(), "TweetController.CreateLike")
 	defer span.End()

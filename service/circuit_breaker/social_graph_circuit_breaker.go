@@ -109,3 +109,40 @@ func (cb *SocialGraphCircuitBreaker) GetMyFollowers(ctx context.Context) ([]*soc
 
 	return execute.([]*social_graph.SocialGraphUsername), nil
 }
+
+func (cb *SocialGraphCircuitBreaker) GetTargetGroupUsers(ctx context.Context, targetGroup model.TargetGroup) ([]*social_graph.SocialGraphUsername, *app_errors.AppError) {
+	cbCtx, span := cb.tracer.Start(ctx, "SocialGraphCircuitBreaker.GetTargetGroupUsers")
+	defer span.End()
+
+	conn, err := tls.GetgRPCConnection("social-graph:9001")
+	defer conn.Close()
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+
+	socialGraphService := social_graph.NewSocialGraphServiceClient(conn)
+
+	tg := social_graph.SocialGraphTargetUsersGroup{
+		Town:   targetGroup.Town,
+		Gender: targetGroup.Gender,
+		MinAge: targetGroup.MinAge,
+		MaxAge: targetGroup.MaxAge,
+	}
+
+	execute, err := cb.circuitBreaker.Execute(func() (interface{}, error) {
+		response, err := socialGraphService.GetTargetGroupUser(cbCtx, &tg)
+
+		if err != nil {
+			return false, &app_errors.AppError{Code: 500, Message: err.Error()}
+		}
+
+		return response.Usernames, nil
+	})
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, &app_errors.AppError{Code: 503, Message: err.Error()}
+	}
+
+	return execute.([]*social_graph.SocialGraphUsername), nil
+}

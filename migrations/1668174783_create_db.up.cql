@@ -5,6 +5,7 @@ CREATE TABLE timeline_by_user (
     image_id text,
     retweet boolean,
     original_posted_by text,
+    ad boolean,
     PRIMARY KEY ((posted_by), tweet_id)
 )
     WITH CLUSTERING ORDER BY (tweet_id DESC);
@@ -25,6 +26,7 @@ CREATE TABLE feed_by_user (
     image_id text,
     retweet boolean,
     original_posted_by text,
+    ad boolean,
     PRIMARY KEY ((username), tweet_id)
 )
     WITH CLUSTERING ORDER BY (tweet_id DESC);
