@@ -66,7 +66,7 @@ func (c *TweetController) CreateAd(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if len(ad.Text) == 0 && len(ad.ImageId) == 0 {
+	if len(ad.Tweet.Text) == 0 && len(ad.Tweet.ImageId) == 0 {
 		http.Error(w, "Text and image can't be blank", 500)
 		return
 	}

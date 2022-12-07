@@ -78,8 +78,8 @@ func (s *TweetService) CreateAd(ctx context.Context, ad model.Ad, authUser model
 	t := model.TweetDTO{
 		ID:               id,
 		PostedBy:         authUser.Username,
-		Text:             ad.Text,
-		ImageId:          ad.ImageId,
+		Text:             ad.Tweet.Text,
+		ImageId:          ad.Tweet.ImageId,
 		Timestamp:        id.Time(),
 		LikesCount:       0,
 		LikedByMe:        false,
@@ -87,8 +87,8 @@ func (s *TweetService) CreateAd(ctx context.Context, ad model.Ad, authUser model
 		OriginalPostedBy: "",
 		Ad:               true,
 	}
-	if len(ad.ImageId) > 0 {
-		t.Image, _ = s.GetImage(serviceCtx, ad.ImageId)
+	if len(ad.Tweet.ImageId) > 0 {
+		t.Image, _ = s.GetImage(serviceCtx, ad.Tweet.ImageId)
 	}
 
 	followers, err := s.socialGraphCB.GetMyFollowers(serviceCtx)

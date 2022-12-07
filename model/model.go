@@ -44,9 +44,13 @@ type Like struct {
 
 // Ad proof of concept structs
 type Ad struct {
-	ID        gocql.UUID `json:"id"`
-	PostedBy  string     `json:"postedBy"`
-	Text      string     `json:"text"`
-	ImageId   string     `json:"imageId"`
-	Timestamp time.Time  `json:"timestamp"`
+	Tweet       Tweet       `json:"tweet"`
+	TargetGroup TargetGroup `json:"targetGroup"`
+}
+
+type TargetGroup struct {
+	City    string `json:"city"`
+	Gender  string `json:"gender"`
+	AgeFrom int    `json:"ageFrom"`
+	AgeTo   int    `json:"ageTo"`
 }
