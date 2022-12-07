@@ -72,7 +72,7 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 func (s *TweetService) CreateAd(ctx context.Context, ad model.Ad, authUser model.AuthUser) (*model.TweetDTO, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateAd")
 	defer span.End()
-
+	//TODO call ads service via grpc
 	id := gocql.TimeUUID()
 
 	t := model.TweetDTO{
@@ -130,6 +130,8 @@ func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, 
 		TweetId:  tweetId,
 	}
 
+	//TODO call ads service via grpc if tweet is ad
+
 	err = s.cassandraRepository.SaveLike(serviceCtx, &l)
 
 	if err != nil {
@@ -145,6 +147,8 @@ func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_
 	defer span.End()
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
+
+	//TODO call ads service via grpc if tweet is ad
 
 	err := s.cassandraRepository.DeleteLike(serviceCtx, id, authUser.Username)
 	if err != nil {

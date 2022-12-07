@@ -49,8 +49,8 @@ type Ad struct {
 }
 
 type TargetGroup struct {
-	City    string `json:"city"`
-	Gender  string `json:"gender"`
-	AgeFrom int    `json:"ageFrom"`
-	AgeTo   int    `json:"ageTo"`
+	Town   string `json:"town"`
+	Gender string `json:"gender"`
+	MinAge int    `json:"minAge"`
+	MaxAge int    `json:"maxAge"`
 }
