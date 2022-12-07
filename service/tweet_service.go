@@ -265,8 +265,8 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		return nil, &app_errors.AppError{Code: 500, Message: "Tweet not found"}
 	}
 
-	if tweet.Retweet || tweet.Ad {
-		return nil, &app_errors.AppError{Code: 406, Message: "You cant retweet a retweet or ad"}
+	if tweet.Retweet {
+		return nil, &app_errors.AppError{Code: 406, Message: "You cant retweet a retweet"}
 	}
 
 	targetUser := social_graph.SocialGraphUsername{
@@ -296,7 +296,7 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 		OriginalPostedBy: tweet.PostedBy,
 		LikedByMe:        false,
 		LikesCount:       0,
-		Ad:               false,
+		Ad:               tweet.Ad,
 	}
 
 	if len(tweet.ImageId) > 0 {
