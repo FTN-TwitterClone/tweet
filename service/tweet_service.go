@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/FTN-TwitterClone/grpc-stubs/proto/ads"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/gocql/gocql"
 	"go.opentelemetry.io/otel/codes"
@@ -13,6 +14,7 @@ import (
 	"tweet/model"
 	"tweet/repository"
 	"tweet/service/circuit_breaker"
+	"tweet/tls"
 )
 
 type TweetService struct {
@@ -72,9 +74,8 @@ func (s *TweetService) CreateTweet(ctx context.Context, tweet model.Tweet) (*mod
 func (s *TweetService) CreateAd(ctx context.Context, ad model.Ad, authUser model.AuthUser) (*model.TweetDTO, *app_errors.AppError) {
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.CreateAd")
 	defer span.End()
-	//TODO call ads service via grpc
-	id := gocql.TimeUUID()
 
+	id := gocql.TimeUUID()
 	t := model.TweetDTO{
 		ID:               id,
 		PostedBy:         authUser.Username,
@@ -110,6 +111,29 @@ func (s *TweetService) CreateAd(ctx context.Context, ad model.Ad, authUser model
 		return nil, &app_errors.AppError{Code: 500, Message: repoErr.Error()}
 	}
 
+	conn, gRPCErr := tls.GetgRPCConnection("ads:9001")
+	defer conn.Close()
+	if gRPCErr != nil {
+		span.SetStatus(codes.Error, gRPCErr.Error())
+		return nil, &app_errors.AppError{Code: 500, Message: gRPCErr.Error()}
+	}
+
+	adsService := ads.NewAdsServiceClient(conn)
+
+	adInfo := ads.AdInfo{
+		TweetId:  id.String(),
+		PostedBy: authUser.Username,
+		Town:     ad.TargetGroup.Town,
+		MinAge:   ad.TargetGroup.MinAge,
+		MaxAge:   ad.TargetGroup.MaxAge,
+		Gender:   ad.TargetGroup.Gender,
+	}
+
+	_, responseErr := adsService.SaveAdInfo(serviceCtx, &adInfo)
+	if responseErr != nil {
+		span.SetStatus(codes.Error, responseErr.Error())
+	}
+
 	return &t, nil
 }
 
@@ -118,8 +142,8 @@ func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, 
 	defer span.End()
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
-	tweetId, err := gocql.ParseUUID(id)
 
+	tweetId, err := gocql.ParseUUID(id)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
@@ -130,13 +154,33 @@ func (s *TweetService) CreateLike(ctx context.Context, id string) (*model.Like, 
 		TweetId:  tweetId,
 	}
 
-	//TODO call ads service via grpc if tweet is ad
-
 	err = s.cassandraRepository.SaveLike(serviceCtx, &l)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+
+	if isAd, rErr := s.cassandraRepository.IsAd(serviceCtx, &tweetId); rErr == nil && isAd {
+		conn, gRPCErr := tls.GetgRPCConnection("ads:9001")
+		defer conn.Close()
+		if gRPCErr != nil {
+			span.SetStatus(codes.Error, gRPCErr.Error())
+			return nil, &app_errors.AppError{Code: 500, Message: gRPCErr.Error()}
+		}
+
+		adsService := ads.NewAdsServiceClient(conn)
+
+		likeEvent := ads.LikeEvent{
+			Username: authUser.Username,
+			TweetId:  id,
+		}
+
+		_, responseErr := adsService.SaveLikeEvent(serviceCtx, &likeEvent)
+
+		if responseErr != nil {
+			span.SetStatus(codes.Error, responseErr.Error())
+		}
 	}
 
 	return &l, nil
@@ -148,12 +192,38 @@ func (s *TweetService) DeleteLike(ctx context.Context, id string) (string, *app_
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
 
-	//TODO call ads service via grpc if tweet is ad
-
-	err := s.cassandraRepository.DeleteLike(serviceCtx, id, authUser.Username)
+	tweetId, err := gocql.ParseUUID(id)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return "", &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+
+	err = s.cassandraRepository.DeleteLike(serviceCtx, &tweetId, authUser.Username)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return "", &app_errors.AppError{Code: 500, Message: err.Error()}
+	}
+
+	if isAd, rErr := s.cassandraRepository.IsAd(serviceCtx, &tweetId); rErr == nil && isAd {
+		conn, gRPCErr := tls.GetgRPCConnection("ads:9001")
+		defer conn.Close()
+		if gRPCErr != nil {
+			span.SetStatus(codes.Error, gRPCErr.Error())
+			return "", &app_errors.AppError{Code: 500, Message: gRPCErr.Error()}
+		}
+
+		adsService := ads.NewAdsServiceClient(conn)
+
+		unlikeEvent := ads.UnlikeEvent{
+			Username: authUser.Username,
+			TweetId:  id,
+		}
+
+		_, responseErr := adsService.SaveUnlikeEvent(serviceCtx, &unlikeEvent)
+
+		if responseErr != nil {
+			span.SetStatus(codes.Error, responseErr.Error())
+		}
 	}
 
 	return id, nil

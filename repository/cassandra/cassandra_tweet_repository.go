@@ -124,12 +124,12 @@ func (r *CassandraTweetRepository) SaveLike(ctx context.Context, like *model.Lik
 	return err
 }
 
-func (r *CassandraTweetRepository) DeleteLike(ctx context.Context, id string, username string) error {
-	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.SaveLike")
+func (r *CassandraTweetRepository) DeleteLike(ctx context.Context, tweetId *gocql.UUID, username string) error {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.DeleteLike")
 	defer span.End()
 
 	err := r.session.Query("DELETE FROM likes WHERE username = ? AND tweet_id = ?").
-		Bind(username, id).
+		Bind(username, tweetId).
 		Exec()
 
 	return err
@@ -293,4 +293,15 @@ func (r *CassandraTweetRepository) UpdateFeed(ctx context.Context, from string, 
 	}
 
 	return err
+}
+
+func (r *CassandraTweetRepository) IsAd(ctx context.Context, tweetId *gocql.UUID) (bool, error) {
+	_, span := r.tracer.Start(ctx, "CassandraTweetRepository.IsAd")
+	defer span.End()
+
+	var isAd bool
+	err := r.session.Query("SELECT ad FROM timeline_by_user WHERE tweet_id = ?").
+		Bind(tweetId).Consistency(gocql.One).Scan(&isAd)
+
+	return isAd, err
 }

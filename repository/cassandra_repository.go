@@ -10,7 +10,7 @@ import (
 type CassandraRepository interface {
 	SaveTweet(ctx context.Context, tweet *model.TweetDTO, usernames []*social_graph.SocialGraphUsername) error
 	SaveLike(ctx context.Context, like *model.Like) error
-	DeleteLike(ctx context.Context, id string, username string) error
+	DeleteLike(ctx context.Context, tweetId *gocql.UUID, username string) error
 	GetTimelineTweets(ctx context.Context, username string, lastTweetId string) ([]model.TweetDTO, error)
 	GetFeedTweets(ctx context.Context, username string, lastTweetId string) ([]model.TweetDTO, error)
 	GetLikesByTweet(ctx context.Context, tweetId string) *[]model.Like
@@ -19,4 +19,5 @@ type CassandraRepository interface {
 	FindUserTweets(ctx context.Context, username string) []model.Tweet
 	LikedByMe(ctx context.Context, tweetId *gocql.UUID) (bool, error)
 	UpdateFeed(ctx context.Context, from string, to string) error
+	IsAd(ctx context.Context, tweetId *gocql.UUID) (bool, error)
 }
