@@ -6,7 +6,6 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc/metadata"
 	"tweet/repository"
 )
 
@@ -23,14 +22,11 @@ func NewgRPCTweetService(tracer trace.Tracer, cassandraRepository repository.Cas
 	}
 }
 
-func (s gRPCTweetService) UpdateFeed(ctx context.Context, user *tweet.User) (*empty.Empty, error) {
+func (s gRPCTweetService) UpdateFeed(ctx context.Context, followReq *tweet.Request) (*empty.Empty, error) {
 	serviceCtx, span := s.tracer.Start(ctx, "gRPCTweetService.UpdateFeed")
 	defer span.End()
 
-	md, _ := metadata.FromIncomingContext(ctx)
-	authUsername := md.Get("authUsername")[0]
-
-	err := s.cassandraRepository.UpdateFeed(serviceCtx, authUsername, user.Username)
+	err := s.cassandraRepository.UpdateFeed(serviceCtx, followReq.From, followReq.To)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return new(empty.Empty), err

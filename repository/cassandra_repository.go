@@ -18,5 +18,5 @@ type CassandraRepository interface {
 	FindTweet(ctx context.Context, tweetId string) (model.Tweet, error)
 	FindUserTweets(ctx context.Context, username string) []model.Tweet
 	LikedByMe(ctx context.Context, tweetId *gocql.UUID) (bool, error)
-	UpdateFeed(ctx context.Context, authUsername string, username string) error
+	UpdateFeed(ctx context.Context, from string, to string) error
 }

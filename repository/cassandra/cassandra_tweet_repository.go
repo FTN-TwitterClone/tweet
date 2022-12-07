@@ -279,16 +279,16 @@ func (r *CassandraTweetRepository) FindUserTweets(ctx context.Context, username 
 	return tweets
 }
 
-func (r *CassandraTweetRepository) UpdateFeed(ctx context.Context, authUsername string, username string) error {
+func (r *CassandraTweetRepository) UpdateFeed(ctx context.Context, from string, to string) error {
 	repoCtx, span := r.tracer.Start(ctx, "CassandraTweetRepository.UpdateFeed")
 	defer span.End()
 
-	tweets := r.FindUserTweets(repoCtx, username)
+	tweets := r.FindUserTweets(repoCtx, to)
 
 	var err error
 	for _, tweet := range tweets {
 		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, image_id, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?, ?)").
-			Bind(tweet.ID, authUsername, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy).
+			Bind(tweet.ID, from, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy).
 			Exec()
 	}
 

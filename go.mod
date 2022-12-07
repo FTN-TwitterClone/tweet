@@ -3,7 +3,7 @@ module tweet
 go 1.18
 
 require (
-	github.com/FTN-TwitterClone/grpc-stubs v1.0.9
+	github.com/FTN-TwitterClone/grpc-stubs v1.1.0
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gocql/gocql v1.2.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
