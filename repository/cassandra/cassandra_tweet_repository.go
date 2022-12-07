@@ -255,9 +255,9 @@ func (r *CassandraTweetRepository) FindTweet(ctx context.Context, tweetId string
 	defer span.End()
 
 	var tweet model.Tweet
-	err := r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, toTimestamp(tweet_id), ad FROM timeline_by_user WHERE tweet_id = ?").
+	err := r.session.Query("SELECT posted_by, tweet_id, text, image_id, retweet, original_posted_by, ad FROM timeline_by_user WHERE tweet_id = ?").
 		Bind(tweetId).Consistency(gocql.One).
-		Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Timestamp, &tweet.Ad)
+		Scan(&tweet.PostedBy, &tweet.ID, &tweet.Text, &tweet.ImageId, &tweet.Retweet, &tweet.OriginalPostedBy, &tweet.Ad)
 
 	return tweet, err
 }
@@ -287,8 +287,8 @@ func (r *CassandraTweetRepository) UpdateFeed(ctx context.Context, from string, 
 
 	var err error
 	for _, tweet := range tweets {
-		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, image_id, retweet, original_posted_by) VALUES (?, ?, ?, ?, ?, ?, ?)").
-			Bind(tweet.ID, from, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy).
+		err = r.session.Query("INSERT INTO feed_by_user (tweet_id, username, posted_by, text, image_id, retweet, original_posted_by, ad) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").
+			Bind(tweet.ID, from, tweet.PostedBy, tweet.Text, tweet.ImageId, tweet.Retweet, tweet.OriginalPostedBy, tweet.Ad).
 			Exec()
 	}
 
