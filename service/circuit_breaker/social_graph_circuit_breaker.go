@@ -123,6 +123,9 @@ func (cb *SocialGraphCircuitBreaker) GetTargetGroupUsers(ctx context.Context, ta
 
 	socialGraphService := social_graph.NewSocialGraphServiceClient(conn)
 
+	authUser := cbCtx.Value("authUser").(model.AuthUser)
+	cbCtx = metadata.AppendToOutgoingContext(cbCtx, "authUsername", authUser.Username)
+
 	tg := social_graph.SocialGraphTargetUsersGroup{
 		Town:   targetGroup.Town,
 		Gender: targetGroup.Gender,
