@@ -336,7 +336,7 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 	}
 
 	if tweet.Retweet {
-		return nil, &app_errors.AppError{Code: 406, Message: "You cant retweet a retweet"}
+		return nil, &app_errors.AppError{Code: 406, Message: "You can't retweet a retweet"}
 	}
 
 	targetUser := social_graph.SocialGraphUsername{
@@ -347,11 +347,11 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 
 	if sbErr != nil && sbErr.Code == 503 {
 		span.SetStatus(codes.Error, sbErr.Error())
-		return nil, &app_errors.AppError{Code: 503, Message: "Service unavailable"}
+		return nil, &app_errors.AppError{Code: 503, Message: "Service unavailable, try again later"}
 	}
 
 	if !visibility {
-		return nil, &app_errors.AppError{Code: 403}
+		return nil, &app_errors.AppError{Code: 403, Message: "The author's profile is private, you must follow it"}
 	}
 
 	authUser := serviceCtx.Value("authUser").(model.AuthUser)
@@ -377,7 +377,6 @@ func (s *TweetService) Retweet(ctx context.Context, tweetId string) (*model.Twee
 
 	if sbErr != nil && sbErr.Code == 503 {
 		span.SetStatus(codes.Error, sbErr.Error())
-		return nil, &app_errors.AppError{Code: 503, Message: "Service unavailable"}
 	}
 
 	err = s.cassandraRepository.SaveTweet(serviceCtx, &t, followers)
