@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -13,12 +14,14 @@ import (
 type TweetController struct {
 	tweetService *service.TweetService
 	tracer       trace.Tracer
+	validator    *validator.Validate
 }
 
 func NewTweetController(tweetService *service.TweetService, tracer trace.Tracer) *TweetController {
 	return &TweetController{
 		tweetService,
 		tracer,
+		validator.New(),
 	}
 }
 
@@ -34,8 +37,10 @@ func (c *TweetController) CreateTweet(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	if len(tweet.Text) == 0 && len(tweet.ImageId) == 0 {
-		http.Error(w, "Text and image can't be blank", 500)
+	vErr := c.validator.Struct(tweet)
+	if vErr != nil {
+		span.SetStatus(codes.Error, vErr.Error())
+		http.Error(w, vErr.Error(), 400)
 		return
 	}
 
@@ -66,8 +71,10 @@ func (c *TweetController) CreateAd(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if len(ad.Tweet.Text) == 0 && len(ad.Tweet.ImageId) == 0 {
-		http.Error(w, "Text and image can't be blank", 500)
+	vErr := c.validator.Struct(ad)
+	if vErr != nil {
+		span.SetStatus(codes.Error, vErr.Error())
+		http.Error(w, vErr.Error(), 400)
 		return
 	}
 

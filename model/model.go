@@ -15,8 +15,8 @@ type AuthUser struct {
 type Tweet struct {
 	ID               gocql.UUID `json:"id"`
 	PostedBy         string     `json:"postedBy"`
-	Text             string     `json:"text"`
-	ImageId          string     `json:"imageId"`
+	Text             string     `json:"text" validate:"required_without=ImageId"`
+	ImageId          string     `json:"imageId" validate:"required_without=Text"`
 	Timestamp        time.Time  `json:"timestamp"`
 	Retweet          bool       `json:"retweet"`
 	OriginalPostedBy string     `json:"originalPostedBy"`
@@ -44,13 +44,13 @@ type Like struct {
 
 // Ad proof of concept structs
 type Ad struct {
-	Tweet       Tweet       `json:"tweet"`
-	TargetGroup TargetGroup `json:"targetGroup"`
+	Tweet       Tweet       `json:"tweet" validate:"required"`
+	TargetGroup TargetGroup `json:"targetGroup" validate:"required"`
 }
 
 type TargetGroup struct {
-	Town   string `json:"town"`
-	Gender string `json:"gender"`
-	MinAge int32  `json:"minAge"`
-	MaxAge int32  `json:"maxAge"`
+	Town   string `json:"town"   validate:"required"`
+	Gender string `json:"gender" validate:"required"`
+	MinAge int32  `json:"minAge" validate:"required,min=0,ltfield=MaxAge"`
+	MaxAge int32  `json:"maxAge" validate:"required,min=0,gtfield=MinAge"`
 }
