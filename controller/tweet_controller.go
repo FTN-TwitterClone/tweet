@@ -193,3 +193,30 @@ func (c *TweetController) SaveImage(w http.ResponseWriter, req *http.Request) {
 
 	json.EncodeJson(w, imageName)
 }
+
+func (c *TweetController) PostRedditCode(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.PostRedditCode")
+	defer span.End()
+
+	code, err := json.DecodeJson[model.CodeDTO](req.Body)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	appErr := c.tweetService.PostRedditCode(ctx, code)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+}
+
+func (c *TweetController) GetRedditCommunities(w http.ResponseWriter, req *http.Request) {
+
+}
+
+func (c *TweetController) ShareTweetReddit(w http.ResponseWriter, req *http.Request) {
+
+}

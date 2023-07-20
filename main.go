@@ -75,6 +75,10 @@ func main() {
 	router.HandleFunc("/tweets/{id}/retweet", tweetController.Retweet).Methods("POST")
 	router.HandleFunc("/tweets/image", tweetController.SaveImage).Methods("POST")
 
+	router.HandleFunc("/reddit/code/", tweetController.PostRedditCode).Methods("POST")
+	router.HandleFunc("/reddit/communities/", tweetController.GetRedditCommunities).Methods("GET")
+	router.HandleFunc("/reddit/share/", tweetController.ShareTweetReddit).Methods("POST")
+
 	allowedHeaders := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "PATCH", "HEAD", "OPTIONS"})
 	allowedOrigins := handlers.AllowedOrigins([]string{"*"})

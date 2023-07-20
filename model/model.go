@@ -37,6 +37,16 @@ type TweetDTO struct {
 	Ad               bool       `json:"ad"`
 }
 
+type CodeDTO struct {
+	Code string `json:"code"`
+}
+
+type TokenResponseDTO struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int64  `json:"expires_in"`
+}
+
 type Like struct {
 	Username string     `json:"username"`
 	TweetId  gocql.UUID `json:"tweetId"`

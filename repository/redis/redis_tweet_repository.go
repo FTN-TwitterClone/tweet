@@ -29,20 +29,20 @@ func NewRedisTweetRepository(tracer trace.Tracer) *RedisTweetRepository {
 	}
 }
 
-func (r *RedisTweetRepository) Post(ctx context.Context, imageId string, image []byte) error {
-	_, span := r.tracer.Start(ctx, "RedisTweetRepository.Post")
+func (r *RedisTweetRepository) PostImage(ctx context.Context, imageId string, image []byte) error {
+	_, span := r.tracer.Start(ctx, "RedisTweetRepository.PostImage")
 	defer span.End()
 
-	err := r.cli.Set(constructKey(imageId), image, 30*time.Second).Err()
+	err := r.cli.Set(constructImageKey(imageId), image, 30*time.Second).Err()
 
 	return err
 }
 
-func (r *RedisTweetRepository) Get(ctx context.Context, imageId string) ([]byte, error) {
-	_, span := r.tracer.Start(ctx, "RedisTweetRepository.Get")
+func (r *RedisTweetRepository) GetImage(ctx context.Context, imageId string) ([]byte, error) {
+	_, span := r.tracer.Start(ctx, "RedisTweetRepository.GetImage")
 	defer span.End()
 
-	value, err := r.cli.Get(constructKey(imageId)).Bytes()
+	value, err := r.cli.Get(constructImageKey(imageId)).Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -50,11 +50,43 @@ func (r *RedisTweetRepository) Get(ctx context.Context, imageId string) ([]byte,
 	return value, nil
 }
 
-func (r *RedisTweetRepository) Exists(ctx context.Context, imageId string) bool {
-	_, span := r.tracer.Start(ctx, "RedisTweetRepository.Exists")
+func (r *RedisTweetRepository) ImageExists(ctx context.Context, imageId string) bool {
+	_, span := r.tracer.Start(ctx, "RedisTweetRepository.ImageExists")
 	defer span.End()
 
-	cnt, err := r.cli.Exists(constructKey(imageId)).Result()
+	cnt, err := r.cli.Exists(constructImageKey(imageId)).Result()
+	if err != nil {
+		return false
+	}
+	return cnt == 1
+}
+
+func (r *RedisTweetRepository) PostToken(ctx context.Context, username string, token string) error {
+	_, span := r.tracer.Start(ctx, "RedisTweetRepository.PostToken")
+	defer span.End()
+
+	err := r.cli.Set(constructTokenKey(username), token, 0).Err()
+
+	return err
+}
+
+func (r *RedisTweetRepository) GetToken(ctx context.Context, username string) ([]byte, error) {
+	_, span := r.tracer.Start(ctx, "RedisTweetRepository.GetToken")
+	defer span.End()
+
+	value, err := r.cli.Get(constructTokenKey(username)).Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	return value, nil
+}
+
+func (r *RedisTweetRepository) TokenExists(ctx context.Context, username string) bool {
+	_, span := r.tracer.Start(ctx, "RedisTweetRepository.TokenExists")
+	defer span.End()
+
+	cnt, err := r.cli.Exists(constructTokenKey(username)).Result()
 	if err != nil {
 		return false
 	}
@@ -63,9 +95,14 @@ func (r *RedisTweetRepository) Exists(ctx context.Context, imageId string) bool 
 
 const (
 	cacheImage = "images:%s"
+	cacheToken = "token:%s"
 	cacheAll   = "images"
 )
 
-func constructKey(id string) string {
+func constructImageKey(id string) string {
 	return fmt.Sprintf(cacheImage, id)
+}
+
+func constructTokenKey(id string) string {
+	return fmt.Sprintf(cacheToken, id)
 }

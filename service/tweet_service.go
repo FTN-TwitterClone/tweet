@@ -1,7 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"fmt"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/ads"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
 	"github.com/gocql/gocql"
@@ -9,8 +12,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"tweet/app_errors"
+	"tweet/controller/json"
 	"tweet/model"
 	"tweet/repository"
 	"tweet/service/circuit_breaker"
@@ -424,7 +429,7 @@ func (s *TweetService) GetImage(ctx context.Context, imageId string) ([]byte, er
 	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetImage")
 	defer span.End()
 
-	image, err := s.cache.Get(serviceCtx, imageId)
+	image, err := s.cache.GetImage(serviceCtx, imageId)
 	if err != nil {
 		//time.Sleep(10 * time.Second) // proof of concept
 
@@ -436,10 +441,66 @@ func (s *TweetService) GetImage(ctx context.Context, imageId string) ([]byte, er
 			return nil, err
 		}
 
-		err = s.cache.Post(serviceCtx, imageId, image)
+		err = s.cache.PostImage(serviceCtx, imageId, image)
 		if err != nil {
 			span.SetStatus(500, err.Error())
 		}
 	}
 	return image, nil
+}
+
+func (s *TweetService) PostRedditCode(ctx context.Context, code model.CodeDTO) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.PostRedditCode")
+	defer span.End()
+
+	authUser := ctx.Value("authUser").(model.AuthUser)
+
+	oauthEndpoint := os.Getenv("OAUTH_ENDPOINT")
+	clientId := os.Getenv("CLIENT_ID")
+	clientSecret := os.Getenv("CLIENT_SECRET")
+
+	tokenEndpoint := fmt.Sprintf("%s/token", oauthEndpoint)
+	basicAuth := basicAuth(clientId, clientSecret)
+
+	formData := url.Values{}
+	formData.Set("grant_type", "code")
+	formData.Set("code", code.Code)
+	formData.Set("redirect_uri", "localhost:4200/share_reddit_redirect")
+
+	req, err := http.NewRequest("POST", tokenEndpoint, bytes.NewBufferString(formData.Encode()))
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return &app_errors.AppError{}
+	}
+
+	req.Header.Set("Authorization", basicAuth)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return &app_errors.AppError{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		span.SetStatus(500, fmt.Sprintf("Error: %d", resp.StatusCode))
+		return &app_errors.AppError{}
+	}
+
+	tokenResponse, err := json.DecodeJson[model.TokenResponseDTO](resp.Body)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return &app_errors.AppError{}
+	}
+
+	s.cache.PostToken(serviceCtx, authUser.Username, tokenResponse.AccessToken)
+
+	return nil
+}
+
+func basicAuth(username string, password string) string {
+	encHeader := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", username, password)))
+
+	return fmt.Sprintf("Basic %s", encHeader)
 }
