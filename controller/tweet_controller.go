@@ -214,9 +214,34 @@ func (c *TweetController) PostRedditCode(w http.ResponseWriter, req *http.Reques
 }
 
 func (c *TweetController) GetRedditCommunities(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.GetRedditCommunities")
+	defer span.End()
 
+	communitiesResponse, appErr := c.tweetService.GetRedditCommunities(ctx)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
+
+	json.EncodeJson(w, communitiesResponse)
 }
 
 func (c *TweetController) ShareTweetReddit(w http.ResponseWriter, req *http.Request) {
+	ctx, span := c.tracer.Start(req.Context(), "TweetController.ShareTweetReddit")
+	defer span.End()
 
+	tweet, err := json.DecodeJson[model.ShareTweetDTO](req.Body)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	appErr := c.tweetService.ShareTweetReddit(ctx, tweet)
+	if appErr != nil {
+		span.SetStatus(codes.Error, appErr.Error())
+		http.Error(w, appErr.Message, appErr.Code)
+		return
+	}
 }

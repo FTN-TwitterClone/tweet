@@ -64,3 +64,24 @@ type TargetGroup struct {
 	MinAge int32  `json:"minAge" validate:"required,min=0,ltfield=MaxAge"`
 	MaxAge int32  `json:"maxAge" validate:"required,min=0,gtfield=MinAge"`
 }
+
+type RedditCommunityDTO struct {
+	Id              int64    `json:"id"`
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Rules           []string `json:"rules"`
+	Suspended       bool     `json:"suspended"`
+	SuspendedReason string   `json:"suspendedReason"`
+	ImageId         int64    `json:"imageId"`
+}
+
+type RedditCreatePostDTO struct {
+	Title       string `json:"title"`
+	Text        string `json:"text"`
+	CommunityId int64  `json:"communityId"`
+}
+
+type ShareTweetDTO struct {
+	Text        string `json:"text"`
+	CommunityId int64  `json:"communityId"`
+}

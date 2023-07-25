@@ -9,6 +9,6 @@ type RedisRepository interface {
 	GetImage(ctx context.Context, imageId string) ([]byte, error)
 	ImageExists(ctx context.Context, imageId string) bool
 	PostToken(ctx context.Context, username string, token string) error
-	GetToken(ctx context.Context, username string) ([]byte, error)
+	GetToken(ctx context.Context, username string) (string, error)
 	TokenExists(ctx context.Context, username string) bool
 }

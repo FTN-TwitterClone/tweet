@@ -70,16 +70,16 @@ func (r *RedisTweetRepository) PostToken(ctx context.Context, username string, t
 	return err
 }
 
-func (r *RedisTweetRepository) GetToken(ctx context.Context, username string) ([]byte, error) {
+func (r *RedisTweetRepository) GetToken(ctx context.Context, username string) (string, error) {
 	_, span := r.tracer.Start(ctx, "RedisTweetRepository.GetToken")
 	defer span.End()
 
 	value, err := r.cli.Get(constructTokenKey(username)).Bytes()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return value, nil
+	return string(value), nil
 }
 
 func (r *RedisTweetRepository) TokenExists(ctx context.Context, username string) bool {

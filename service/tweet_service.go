@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	json2 "encoding/json"
 	"fmt"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/ads"
 	"github.com/FTN-TwitterClone/grpc-stubs/proto/social_graph"
@@ -495,6 +496,104 @@ func (s *TweetService) PostRedditCode(ctx context.Context, code model.CodeDTO) *
 	}
 
 	s.cache.PostToken(serviceCtx, authUser.Username, tokenResponse.AccessToken)
+
+	return nil
+}
+
+func (s *TweetService) GetRedditCommunities(ctx context.Context) ([]model.RedditCommunityDTO, *app_errors.AppError) {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.GetRedditCommunities")
+	defer span.End()
+
+	authUser := ctx.Value("authUser").(model.AuthUser)
+
+	token, err := s.cache.GetToken(serviceCtx, authUser.Username)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return nil, &app_errors.AppError{}
+	}
+
+	redditEndpoint := os.Getenv("REDDIT_ENDPOINT")
+	communitiesEndpoint := fmt.Sprintf("%s/api/communities", redditEndpoint)
+
+	req, err := http.NewRequest("GET", communitiesEndpoint, &bytes.Buffer{})
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return nil, &app_errors.AppError{}
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return nil, &app_errors.AppError{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		span.SetStatus(500, fmt.Sprintf("Error: %d", resp.StatusCode))
+		return nil, &app_errors.AppError{}
+	}
+
+	communitiesResponse, err := json.DecodeJson[[]model.RedditCommunityDTO](resp.Body)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return nil, &app_errors.AppError{}
+	}
+
+	return communitiesResponse, nil
+}
+
+func (s *TweetService) ShareTweetReddit(ctx context.Context, tweet model.ShareTweetDTO) *app_errors.AppError {
+	serviceCtx, span := s.tracer.Start(ctx, "TweetService.ShareTweetReddit")
+	defer span.End()
+
+	authUser := ctx.Value("authUser").(model.AuthUser)
+
+	token, err := s.cache.GetToken(serviceCtx, authUser.Username)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return &app_errors.AppError{}
+	}
+
+	redditEndpoint := os.Getenv("REDDIT_ENDPOINT")
+
+	postEndpoint := fmt.Sprintf("%s/api/posts", redditEndpoint)
+
+	post := model.RedditCreatePostDTO{
+		Title:       tweet.Text,
+		Text:        tweet.Text,
+		CommunityId: tweet.CommunityId,
+	}
+
+	jsonBytes, err := json2.Marshal(post)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return &app_errors.AppError{}
+	}
+
+	jsonReader := bytes.NewReader(jsonBytes)
+
+	req, err := http.NewRequest("POST", postEndpoint, jsonReader)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return &app_errors.AppError{}
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		span.SetStatus(500, err.Error())
+		return &app_errors.AppError{}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		span.SetStatus(500, fmt.Sprintf("Error: %d", resp.StatusCode))
+		return &app_errors.AppError{}
+	}
 
 	return nil
 }
